@@ -44,6 +44,7 @@ public:
     typedef k2_treap_ns::top_k_iterator<k2treap_type>  k2treap_iterator;
     typedef typename t_csa::alphabet_category          alphabet_category;
     typedef t_doc_offset			       doc_offset_type;
+    typedef typename t_doc_offset::select_1_type       doc_offset_select_type;
 
     typedef map_to_dup_type<h_select_type> map_to_h_type;
 public:
@@ -54,6 +55,7 @@ public:
     h_type            	m_h;
     h_select_type     	m_h_select;
     doc_offset_type 	m_doc_offset; // offset representation of documents in node list 
+    doc_offset_select_type m_doc_offset_select;
     rmqc_type          	m_rmqc;
     k2treap_type       	m_k2treap;
     map_to_h_type     	m_map_to_h;
@@ -184,7 +186,8 @@ public:
 
     void load(sdsl::cache_config& cc){
         load_from_cache(m_csa, surf::KEY_CSA, cc, true);
-        load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET, cc);
+        load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET, cc, true);
+        load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT, cc, true);
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true); 
         load_from_cache(m_border_rank, surf::KEY_DOCBORDER_RANK, cc, true); 
         m_border_rank.set_vector(&m_border);
@@ -354,7 +357,7 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
         P_buf.close();
     }
     cout <<"...DOC_OFFSET"<<endl;
-    if (!cache_file_exists<idx_type>(surf::KEY_DOC_OFFSET,cc))
+    if (!cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET,cc))
     {
         int_vector<> darray,dup;
         load_from_cache(darray, surf::KEY_DARRAY, cc);
@@ -375,7 +378,6 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
 	for (uint64_t i = 1; i < darray.size(); ++i) {
 		end = h_select(i)+1-i;
 		if (start < end) { // Dup lens
-			uint64_t set_size = end-start;
 			// Find greedy all dups in darray starting from i+1.
 			set<uint64_t> dup_set(dup.begin() + start, dup.begin() + end);	
 			uint64_t sa_pos = i;
@@ -385,9 +387,9 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
 					// Store offset.
 					sa_offset.push_back(sa_pos-i);
 				}	
-				++sa_pos;
 				if (sa_pos >= darray.size())
 					cout << "ERROR: sa_pos is out of bounds." << endl;
+				++sa_pos;
 			}
 			// sd_n computation.
 			// encode first value + 1.

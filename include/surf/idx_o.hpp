@@ -106,7 +106,7 @@ public:
                     m_valid = false;
                     if ( m_k2_iter ) { // multiple occurrence result exists
                         auto xy_w       = *m_k2_iter;
-                        uint64_t doc_id = m_idx->m_doc[real(xy_w.first)]; 
+                        uint64_t doc_id = m_idx->get_doc(real(xy_w.first)); 
                         m_doc_val = t_doc_val(doc_id, xy_w.second+1);
                         m_reported.insert(doc_id);
                         m_valid = true;
@@ -163,6 +163,15 @@ public:
             }
         }
         return res;
+    }
+
+    // Decode m_doc value at postion index by using offset encoding.
+    uint64_t get_doc(const uint64_t index) const {
+	//uint64_t h_index = h_select_0(index+1) - index + 1;
+	//uint64_t start = h_select_1(h_index)+1;	
+	//uint64_t end = h_select_1(h_index+1);
+	// [start,end) contains the zeros in the bv H.
+	return 0;
     }
 
     auto doc(uint64_t doc_id) -> decltype(extract(m_csa,0,0)) {

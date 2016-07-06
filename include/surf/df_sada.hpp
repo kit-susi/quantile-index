@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <unordered_set>
 
+using std::cout;
+using std::endl;
 using std::string;
 
 namespace surf{
@@ -165,7 +167,7 @@ class df_sada{
                     }
                     if ( v != cst.root() ){
                         for(auto& child : child_vec){
-                            range_vec.emplace_back(cst.lb(child), cst.rb(child));
+                            range_vec.emplace_back(range_type({cst.lb(child), cst.rb(child)}));
                         }
                         auto dups = intersect(wtd, range_vec, 2);
                         range_vec.clear();

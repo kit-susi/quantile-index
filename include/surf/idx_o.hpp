@@ -27,7 +27,8 @@ template<typename t_csa,
          typename t_border_rank = typename t_border::rank_1_type,
          typename t_border_select = typename t_border::select_1_type,
          typename t_h = sdsl::rrr_vector<63>,
-         typename t_h_select = typename t_h::select_1_type,
+         typename t_h_select_0 = typename t_h::select_0_type,
+         typename t_h_select_1 = typename t_h::select_1_type,
 	 typename t_doc_offset = sdsl::sd_vector<>
          >
 class idx_o{
@@ -38,7 +39,8 @@ public:
     typedef t_border_rank                              border_rank_type;
     typedef t_border_select                            border_select_type;
     typedef t_h                                        h_type;
-    typedef t_h_select                                 h_select_type;
+    typedef t_h_select_0                               h_select_0_type;
+    typedef t_h_select_1                               h_select_1_type;
     typedef t_rmq                                      rmqc_type;
     typedef t_k2treap                                  k2treap_type;
     typedef k2_treap_ns::top_k_iterator<k2treap_type>  k2treap_iterator;
@@ -46,14 +48,15 @@ public:
     typedef t_doc_offset			       doc_offset_type;
     typedef typename t_doc_offset::select_1_type       doc_offset_select_type;
 
-    typedef map_to_dup_type<h_select_type> map_to_h_type;
+    typedef map_to_dup_type<h_select_1_type> map_to_h_type;
 public:
     csa_type           	m_csa;
     border_type        	m_border;
     border_rank_type   	m_border_rank;
     border_select_type 	m_border_select;
     h_type            	m_h;
-    h_select_type     	m_h_select;
+    h_select_0_type    	m_h_select_0;
+    h_select_1_type    	m_h_select_1;
     doc_offset_type 	m_doc_offset; // offset representation of documents in node list 
     doc_offset_select_type m_doc_offset_select;
     rmqc_type          	m_rmqc;
@@ -167,11 +170,15 @@ public:
 
     // Decode m_doc value at postion index by using offset encoding.
     uint64_t get_doc(const uint64_t index) const {
+	uint64_t sa_start_pos = m_h_select_0(index+1) - index + 1;
+	uint64_t num_deltas = m_h_select_1(sa_start_pos) - sa_start_pos - index;
+	uint64_t offset = m_doc_offset_select(index+1) - 
+		m_doc_offset_select(index-num_deltas+1);
+	return sa_start_pos + offset;
 	//uint64_t h_index = h_select_0(index+1) - index + 1;
 	//uint64_t start = h_select_1(h_index)+1;	
 	//uint64_t end = h_select_1(h_index+1);
 	// [start,end) contains the zeros in the bv H.
-	return 0;
     }
 
     auto doc(uint64_t doc_id) -> decltype(extract(m_csa,0,0)) {
@@ -203,9 +210,11 @@ public:
         load_from_cache(m_border_select, surf::KEY_DOCBORDER_SELECT, cc, true); 
         m_border_select.set_vector(&m_border);
         load_from_cache(m_h, surf::KEY_H, cc, true);
-        load_from_cache(m_h_select, surf::KEY_H_SELECT, cc, true);
-        m_h_select.set_vector(&m_h);
-        m_map_to_h = map_to_h_type(&m_h_select);
+        load_from_cache(m_h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        load_from_cache(m_h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        m_h_select_0.set_vector(&m_h);
+        m_h_select_1.set_vector(&m_h);
+        m_map_to_h = map_to_h_type(&m_h_select_1);
         load_from_cache(m_rmqc, surf::KEY_RMQC, cc, true); 
         load_from_cache(m_k2treap, surf::KEY_W_AND_P, cc, true); 
     }
@@ -218,7 +227,8 @@ public:
         written_bytes += m_border.serialize(out, child, "BORDER");
         written_bytes += m_border_rank.serialize(out, child, "BORDER_RANK");
         written_bytes += m_h.serialize(out, child, "H");
-        written_bytes += m_h_select.serialize(out, child, "H_SELECT");
+        written_bytes += m_h_select_0.serialize(out, child, "H_SELECT_0");
+        written_bytes += m_h_select_1.serialize(out, child, "H_SELECT_1");
         written_bytes += m_rmqc.serialize(out, child, "RMQ_C");
         written_bytes += m_k2treap.serialize(out, child, "W_AND_P");
         structure_tree::add_size(child, written_bytes);
@@ -235,9 +245,10 @@ template<typename t_csa,
          typename t_border_rank,
          typename t_border_select,
          typename t_h,
-         typename t_h_select
+         typename t_h_select_0,
+         typename t_h_select_1
          >
-void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_select,t_h,t_h_select>& idx,
+void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_select,t_h,t_h_select_0, t_h_select_1>& idx,
                const std::string&,
                sdsl::cache_config& cc, uint8_t num_bytes)
 {    
@@ -247,7 +258,7 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
     using idx_type = idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,
-	  t_border_select,t_h,t_h_select>;
+	  t_border_select,t_h,t_h_select_0, t_h_select_1>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
@@ -278,8 +289,10 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
         load_from_cache(h, surf::KEY_H, cc);
         t_h hrrr = h;
         store_to_cache(hrrr, surf::KEY_H, cc, true);
-        t_h_select h_select(&hrrr);
-        store_to_cache(h_select, surf::KEY_H_SELECT, cc, true);
+        t_h_select_0 h_select_0(&hrrr);
+        t_h_select_1 h_select_1(&hrrr);
+        store_to_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        store_to_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
     }
     cout<<"...DOC_BORDER"<<endl;
     if ( !cache_file_exists<t_border>(surf::KEY_DOCBORDER,cc) or
@@ -327,12 +340,12 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
         
         t_h hrrr;
         load_from_cache(hrrr, surf::KEY_H, cc, true);
-        t_h_select h_select;
-        load_from_cache(h_select, surf::KEY_H_SELECT, cc, true);
-        h_select.set_vector(&hrrr);
+        t_h_select_1 h_select_1;
+        load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        h_select_1.set_vector(&hrrr);
         cst_type cst;
         load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
-        map_node_to_dup_type<cst_type, t_h_select> map_node_to_dup(&h_select, &cst);
+        map_node_to_dup_type<cst_type, t_h_select_1> map_node_to_dup(&h_select_1, &cst);
 
         uint64_t doc_cnt = 1;
         load_from_cache(doc_cnt, KEY_DOCCNT, cc);
@@ -373,9 +386,9 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
         load_from_cache(dup, surf::KEY_DUP, cc);
         t_h hrrr;
         load_from_cache(hrrr, surf::KEY_H, cc, true);
-        t_h_select h_select;
-        load_from_cache(h_select, surf::KEY_H_SELECT, cc, true);
-        h_select.set_vector(&hrrr);
+        t_h_select_1 h_select_1;
+        load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        h_select_1.set_vector(&hrrr);
 
 	// Iterate through all nodes.
 	uint64_t start = 0;
@@ -385,7 +398,7 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
 	uint64_t sd_n = 1;
 	// Note that the first interval are all document ids in ascending order!
 	for (uint64_t i = 1; i < darray.size(); ++i) {
-		end = h_select(i)+1-i;
+		end = h_select_1(i)+1-i;
 		if (start < end) { // Dup lens
 			// Find greedy all dups in darray starting from i+1.
 			set<uint64_t> dup_set(dup.begin() + start, dup.begin() + end);	
@@ -417,7 +430,7 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
 	start = 0;
 	uint64_t cur_pos = 0;
 	for (uint64_t i = 1; i < darray.size(); ++i) {
-		end = h_select(i)+1-i;
+		end = h_select_1(i)+1-i;
 		if (start < end) { // Dup lens
 			cur_pos += sa_offset[start] + 1;
 			builder.set(cur_pos);

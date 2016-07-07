@@ -175,10 +175,6 @@ public:
 	uint64_t offset = m_doc_offset_select(index+1) - 
 		m_doc_offset_select(index-num_deltas+1);
 	return sa_start_pos + offset;
-	//uint64_t h_index = h_select_0(index+1) - index + 1;
-	//uint64_t start = h_select_1(h_index)+1;	
-	//uint64_t end = h_select_1(h_index+1);
-	// [start,end) contains the zeros in the bv H.
     }
 
     auto doc(uint64_t doc_id) -> decltype(extract(m_csa,0,0)) {
@@ -260,6 +256,8 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
     using idx_type = idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,
 	  t_border_select,t_h,t_h_select_0, t_h_select_1>;
     using doc_offset_type = typename idx_type::doc_offset_type;
+
+    assert(t_df::greedy_order);
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
@@ -396,18 +394,17 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
 	// For each dup value offset o such that darray[nodeIndex+o+1] = dup.
 	vector<uint64_t> sa_offset; 
 	uint64_t sd_n = 1;
-	// Note that the first interval are all document ids in ascending order!
 	for (uint64_t i = 1; i < darray.size(); ++i) {
 		end = h_select_1(i)+1-i;
 		if (start < end) { // Dup lens
-			// Find greedy all dups in darray starting from i+1.
-			set<uint64_t> dup_set(dup.begin() + start, dup.begin() + end);	
+			vector<uint64_t> dup_set(dup.begin() + start, dup.begin() + end);	
 			uint64_t sa_pos = i;
-			while (!dup_set.empty()) {
-				if (dup_set.count(darray[sa_pos]) == 1) {
-					dup_set.erase(darray[sa_pos]);
+			uint64_t j = 0;
+			while (j < dup_set.size()) {
+				if (dup_set[j] == darray[sa_pos]) {
 					// Store offset.
 					sa_offset.push_back(sa_pos-i);
+					++j;
 				}	
 				if (sa_pos >= darray.size())
 					cout << "ERROR: sa_pos is out of bounds." << endl;

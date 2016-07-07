@@ -12,6 +12,7 @@
 #include <string>
 #include <algorithm>
 #include <unordered_set>
+#include <unordered_map>
 
 using std::cout;
 using std::endl;
@@ -34,6 +35,8 @@ struct df_sada_trait<sdsl::byte_alphabet_tag>{
  * \tparam t_bv       Bitvector type.
  * \tparam t_sel      Select structure for ones
  * \tparam t_alphabet The alphabet category. 
+ * \param  greedy_order Specifies if dup array should be reordered for greedy
+ * 			offset encoding.
  *
  * This data structure was described in [1].
  *
@@ -44,13 +47,15 @@ struct df_sada_trait<sdsl::byte_alphabet_tag>{
  */
 template<typename t_bv=sdsl::bit_vector,
          typename t_sel=typename t_bv::select_1_type,
-         typename t_alphabet=sdsl::int_alphabet_tag>
+         typename t_alphabet=sdsl::int_alphabet_tag,
+	 bool t_greedy_order=false>
 class df_sada{
     public:
         typedef typename sdsl::int_vector<>::size_type size_type;
         typedef t_bv  bit_vector_type;
         typedef t_sel select_type;
         typedef t_alphabet alphabet_category;
+	static const bool greedy_order = t_greedy_order;
 
         typedef typename df_sada_trait<t_alphabet>::cst_type cst_type;
     private:
@@ -78,7 +83,6 @@ class df_sada{
                 m_sel = select_type(&m_bv);
                 return;
             }
-
 
             construct_max_doc_len<alphabet_category::WIDTH>(cc);    
             uint64_t max_len = 0;
@@ -171,7 +175,31 @@ class df_sada{
                         }
                         auto dups = intersect(wtd, range_vec, 2);
                         range_vec.clear();
-                        for (auto &duplicate : dups) {
+			// If greedy offset ording is used reorder dups.
+			if (greedy_order) {
+				uint64_t sa_pos = h_idx - dup_idx;
+				// Build set.
+				std::unordered_map<uint64_t, uint64_t> dup_set;
+				for (size_t i = 0; i < dups.size(); ++i) {
+					dup_set[dups[i].first] = i;
+				}
+				// Make order.
+				auto ordered_dups(dups);
+				ordered_dups.resize(0); ordered_dups.reserve(dups.size());
+				while (!dup_set.empty()) {
+					auto it = dup_set.find(D[sa_pos]);
+					if (it != dup_set.end()) {
+						// Insert found element next.
+						ordered_dups.push_back(dups[it->second]);
+						dup_set.erase(it);
+					}	
+					if (sa_pos >= D.size())
+						cout << "ERROR: sa_pos is out of bounds." << endl;
+					++sa_pos;
+				}
+				dups = ordered_dups;
+			}
+                        for (const auto &duplicate : dups) {
                             dup_buf[dup_idx] = duplicate.first;
                             weight_buf[dup_idx] = duplicate.second-1; 
                             ++dup_idx;
@@ -248,11 +276,11 @@ class df_sada{
         }
 };
 
-template<typename t_bv, typename t_sel, typename t_alphabet>
-void construct(df_sada<t_bv,t_sel,t_alphabet> &idx, const string& file,
+template<typename t_bv, typename t_sel, typename t_alphabet, bool greedy_order>
+void construct(df_sada<t_bv,t_sel,t_alphabet, greedy_order> &idx, const string& file,
                sdsl::cache_config& cc, uint8_t){
     using namespace sdsl;
-    typedef df_sada<t_bv, t_sel, t_alphabet> df_sada_type;
+    typedef df_sada<t_bv, t_sel, t_alphabet, greedy_order> df_sada_type;
 
     cout << "construct(df_sada)"<< endl;
     if (!cache_file_exists(conf::KEY_SA, cc)) {
@@ -271,7 +299,7 @@ void construct(df_sada<t_bv,t_sel,t_alphabet> &idx, const string& file,
         }
     }
     register_cache_file(conf::KEY_LCP, cc);
-    using cst_type = typename df_sada<t_bv,t_sel,t_alphabet>::cst_type;
+    using cst_type = typename df_sada<t_bv,t_sel,t_alphabet, greedy_order>::cst_type;
     if (!cache_file_exists<cst_type>(KEY_TMPCST, cc)) {
         auto event = memory_monitor::event("construct cst");
         cst_type cst = cst_type(cc);

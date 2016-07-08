@@ -177,7 +177,7 @@ class df_sada{
                         range_vec.clear();
 			// If greedy offset ording is used reorder dups.
 			if (greedy_order) {
-				uint64_t sa_pos = h_idx - dup_idx;
+				uint64_t sa_pos = h_idx - dup_idx+1;
 				// Build set.
 				std::unordered_map<uint64_t, uint64_t> dup_set;
 				for (size_t i = 0; i < dups.size(); ++i) {

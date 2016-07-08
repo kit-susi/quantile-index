@@ -394,7 +394,7 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
 	// For each dup value offset o such that darray[nodeIndex+o+1] = dup.
 	vector<uint64_t> sa_offset; 
 	uint64_t sd_n = 1;
-	for (uint64_t i = 1; i < darray.size(); ++i) {
+	for (uint64_t i = 1; i <= darray.size(); ++i) {
 		end = h_select_1(i)+1-i;
 		if (start < end) { // Dup lens
 			vector<uint64_t> dup_set(dup.begin() + start, dup.begin() + end);	
@@ -406,8 +406,10 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
 					sa_offset.push_back(sa_pos-i);
 					++j;
 				}	
-				if (sa_pos >= darray.size())
+				if (sa_pos >= darray.size()) {
 					cout << "ERROR: sa_pos is out of bounds." << endl;
+					return;
+				}
 				++sa_pos;
 			}
 			// sd_n computation.

@@ -170,11 +170,18 @@ public:
 
     // Decode m_doc value at postion index by using offset encoding.
     uint64_t get_doc(const uint64_t index) const {
-	uint64_t sa_start_pos = m_h_select_0(index+1) - index + 1;
-	uint64_t num_deltas = m_h_select_1(sa_start_pos) - sa_start_pos - index;
-	uint64_t offset = m_doc_offset_select(index+1) - 
-		m_doc_offset_select(index-num_deltas+1);
-	return sa_start_pos + offset;
+	// All sa offsets are relative to sa_base_pos (rightmost leaf of left subtree).
+	uint64_t sa_base_pos = m_h_select_0(index+1) - index + 1;
+	uint64_t base_index = // Index of first dup entry in the node.
+			m_h_select_1(sa_base_pos-1) + 2 - sa_base_pos;
+	uint64_t sa_delta = // Extract delta from base index to index.
+		(base_index == 0) ?
+			m_doc_offset_select(index+1) :
+			m_doc_offset_select(index+1) - m_doc_offset_select(base_index);
+	--sa_delta; // Because zero deltas can't be encoded otherwise.
+	uint64_t sa_pos = sa_base_pos + sa_delta;
+	uint64_t text_pos = m_csa[sa_pos];
+	return m_border_rank(text_pos);
     }
 
     auto doc(uint64_t doc_id) -> decltype(extract(m_csa,0,0)) {
@@ -200,6 +207,7 @@ public:
         load_from_cache(m_csa, surf::KEY_CSA, cc, true);
         load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET, cc, true);
         load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT, cc, true);
+        m_doc_offset_select.set_vector(&m_doc_offset);
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true); 
         load_from_cache(m_border_rank, surf::KEY_DOCBORDER_RANK, cc, true); 
         m_border_rank.set_vector(&m_border);
@@ -484,6 +492,22 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
         sdsl::remove(W_and_P_file+".x");
         sdsl::remove(W_and_P_file+".y");
         sdsl::remove(W_and_P_file+".w");
+    }
+    if (false) { // Sanity check, extract dup from offsets.
+	cout << "Running offset sanity check ... ";
+	idx_type idx;
+	idx.load(cc);	
+        int_vector<> dup;
+        load_from_cache(dup, surf::KEY_DUP, cc);
+	for (uint64_t i = 0; i < dup.size(); ++i) {
+		uint64_t val = idx.get_doc(i);
+		if (dup[i] != val) {
+			cout << "ERROR : dup[i] != get_doc(i) " <<
+				i << " " << dup[i] << "!=" << val << endl;
+			return;
+		}
+	}
+	cout << "passed" << endl;
     }
 }
 

@@ -20,6 +20,7 @@ const std::string KEY_U = "U";
 const std::string KEY_WTU = "wtu";
 const std::string KEY_DOCPERM = "docperm";
 const std::string KEY_SADADF = "sadadf";
+const std::string KEY_SADADF_G = "sadadf_g";
 const std::string KEY_WTD = "wtd";
 const std::string KEY_C = "C";
 const std::string KEY_RMQC = "RMQC";
@@ -32,7 +33,9 @@ const std::string KEY_WTDP  = "wtdp";
 const std::string KEY_DOC_OFFSET  = "doc_offset";
 const std::string KEY_DOC_OFFSET_SELECT  = "doc_offset_select";
 const std::string KEY_DUP  = "dup";
+const std::string KEY_DUP_G  = "dup_g";
 const std::string KEY_P   = "P";
+const std::string KEY_P_G   = "P_G";
 const std::string KEY_WTP   = "WTP";
 const std::string KEY_DOCCNT  = "doccnt";
 const std::string KEY_COLLEN  = "collen";
@@ -54,7 +57,9 @@ const std::string KEY_MAXTF = "maxtf";
 const std::string KEY_MAXDOCLEN = "maxdoclen";
 const std::string KEY_MAXCSTDEPTH = "maxcstdepth";
 const std::string KEY_WEIGHTS = "weights";
+const std::string KEY_WEIGHTS_G = "weights_g";
 const std::string KEY_W_AND_P = "W_and_P";
+const std::string KEY_W_AND_P_G = "W_and_P_g";
 
 std::vector<std::string> storage_keys = {KEY_DOCCNT,
 										 KEY_DARRAY,

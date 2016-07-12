@@ -74,7 +74,8 @@ class df_sada{
         df_sada(sdsl::cache_config& cc){
             using namespace sdsl;
             auto event = memory_monitor::event("construct df_sada");
-            if (cache_file_exists(KEY_H, cc)){
+            if (cache_file_exists(KEY_H, cc) && cache_file_exists(
+				    greedy_order ? KEY_DUP_G : KEY_DUP, cc)){
                 bit_vector h;
                 load_from_cache(h, KEY_H, cc);
                 store_to_cache(h, KEY_H, cc);
@@ -119,8 +120,10 @@ class df_sada{
             cout << "D_split_rank(D_split.size())="<<D_split_rank(D_split.size())<<endl;
             cout << "avg dist="<<D_split.size()/(D_split_rank(D_split.size())+1.0)<<endl;
 
-            std::string DUP_file = cache_file_name(surf::KEY_DUP, cc);
-            std::string W_file = cache_file_name(surf::KEY_WEIGHTS, cc);
+            std::string DUP_file = cache_file_name(
+			    greedy_order ? surf::KEY_DUP_G : surf::KEY_DUP, cc);
+            std::string W_file = cache_file_name(
+			    greedy_order ? surf::KEY_WEIGHTS_G : surf::KEY_WEIGHTS, cc);
 
             int_vector_buffer<> dup_buf(DUP_file, std::ios::out, 1<<20, sdsl::bits::hi(doc_cnt)+1);
             int_vector_buffer<> weight_buf(W_file, std::ios::out, 1<<20, sdsl::bits::hi(max_len)+1);
@@ -350,11 +353,12 @@ void construct(df_sada<t_bv,t_sel,t_alphabet, greedy_order> &idx, const string& 
     }
 
     cout << "call df_sada_type construct" << endl;
-    if ( !cache_file_exists<df_sada_type>(surf::KEY_SADADF, cc) ) {
+    string sadadf_key = greedy_order ? surf::KEY_SADADF_G : surf::KEY_SADADF;
+    if ( !cache_file_exists<df_sada_type>(sadadf_key, cc) ) {
         df_sada_type tmp_sadadf(cc);
-        store_to_cache(tmp_sadadf, surf::KEY_SADADF,cc, true);
+        store_to_cache(tmp_sadadf, sadadf_key, cc, true);
     }
-    load_from_cache(idx, surf::KEY_SADADF, cc, true);
+    load_from_cache(idx, sadadf_key, cc, true);
 }
 
 

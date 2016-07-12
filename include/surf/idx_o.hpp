@@ -220,7 +220,7 @@ public:
         m_h_select_1.set_vector(&m_h);
         m_map_to_h = map_to_h_type(&m_h_select_1);
         load_from_cache(m_rmqc, surf::KEY_RMQC, cc, true); 
-        load_from_cache(m_k2treap, surf::KEY_W_AND_P, cc, true); 
+        load_from_cache(m_k2treap, surf::KEY_W_AND_P_G, cc, true); 
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v=nullptr, std::string name="")const {
@@ -286,7 +286,7 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
         store_to_cache(wtd, surf::KEY_WTD, cc, true);
     }
     cout<<"...DF"<<endl; // 
-    if (!cache_file_exists<t_df>(surf::KEY_SADADF, cc))
+    if (!cache_file_exists<t_df>(surf::KEY_SADADF_G, cc))
     {
         t_df df;
         construct(df, "", cc, 0);
@@ -325,19 +325,19 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
     }
     // P corresponds to up-pointers
     cout<<"...P"<<endl;
-    if (!cache_file_exists(surf::KEY_P, cc))
+    if (!cache_file_exists(surf::KEY_P_G, cc))
     {
         uint64_t max_depth = 0;
         load_from_cache(max_depth, surf::KEY_MAXCSTDEPTH, cc);
 
         int_vector<> dup;
-        load_from_cache(dup, surf::KEY_DUP, cc);
+        load_from_cache(dup, surf::KEY_DUP_G, cc);
         cout<<"dup.size()="<<dup.size()<<endl;
         if ( dup.size() < 20 ){
             cout << dup << endl;
         }
 
-        std::string P_file = cache_file_name(surf::KEY_P, cc);
+        std::string P_file = cache_file_name(surf::KEY_P_G, cc);
         
         int_vector_buffer<> P_buf(P_file, std::ios::out, 1<<20, sdsl::bits::hi(max_depth)+1);
 
@@ -389,7 +389,7 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
     {
         int_vector<> darray,dup;
         load_from_cache(darray, surf::KEY_DARRAY, cc);
-        load_from_cache(dup, surf::KEY_DUP, cc);
+        load_from_cache(dup, surf::KEY_DUP_G, cc);
         t_h hrrr;
         load_from_cache(hrrr, surf::KEY_H, cc, true);
         t_h_select_1 h_select_1;
@@ -465,10 +465,10 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
         store_to_cache(rmq_c, surf::KEY_RMQC, cc, true); 
     }
     cout<<"...W_AND_P"<<endl;
-    if (!cache_file_exists<t_k2treap>(surf::KEY_W_AND_P, cc))
+    if (!cache_file_exists<t_k2treap>(surf::KEY_W_AND_P_G, cc))
     {
-        int_vector_buffer<> P_buf(cache_file_name(surf::KEY_P, cc));
-        std::string W_and_P_file = cache_file_name(surf::KEY_W_AND_P, cc);
+        int_vector_buffer<> P_buf(cache_file_name(surf::KEY_P_G, cc));
+        std::string W_and_P_file = cache_file_name(surf::KEY_W_AND_P_G, cc);
         cout<<"P_buf.size()=" << P_buf.size() << endl;
         {
             int_vector<> id_v(P_buf.size(), 0,bits::hi(P_buf.size())+1);
@@ -477,18 +477,18 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
         }
         {
             int_vector<> P;
-            load_from_cache(P, surf::KEY_P, cc);
+            load_from_cache(P, surf::KEY_P_G, cc);
             store_to_file(P, W_and_P_file+".y");
         }
         {
             int_vector<> W;
-            load_from_cache(W, surf::KEY_WEIGHTS, cc);
+            load_from_cache(W, surf::KEY_WEIGHTS_G, cc);
             store_to_file(W, W_and_P_file+".w");
         }
         cout<<"build k2treap"<<endl;
         t_k2treap k2treap;
-        construct(k2treap, cache_file_name(surf::KEY_W_AND_P,cc));
-        store_to_cache(k2treap, surf::KEY_W_AND_P, cc, true);
+        construct(k2treap, cache_file_name(surf::KEY_W_AND_P_G,cc));
+        store_to_cache(k2treap, surf::KEY_W_AND_P_G, cc, true);
         sdsl::remove(W_and_P_file+".x");
         sdsl::remove(W_and_P_file+".y");
         sdsl::remove(W_and_P_file+".w");
@@ -498,7 +498,7 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
 	idx_type idx;
 	idx.load(cc);	
         int_vector<> dup;
-        load_from_cache(dup, surf::KEY_DUP, cc);
+        load_from_cache(dup, surf::KEY_DUP_G, cc);
 	for (uint64_t i = 0; i < dup.size(); ++i) {
 		uint64_t val = idx.get_doc(i);
 		if (dup[i] != val) {

@@ -351,6 +351,7 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         if ( dup.size() < 20 ){
             cout << dup << endl;
         }
+	cout << "plain dup encoding:\t\t" << size_in_bytes(dup) / (double)dup.size() << endl;
 
         std::string P_file = cache_file_name(surf::KEY_P, cc);
         

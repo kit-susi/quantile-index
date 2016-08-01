@@ -6,6 +6,7 @@
 #include "surf/df_sada.hpp"
 #include "surf/rank_functions.hpp"
 #include "surf/idx_d.hpp"
+#include "sdsl/hyb_sd_vector.hpp"
 #include "surf/construct_col_len.hpp"
 #include <algorithm>
 #include <limits>
@@ -250,9 +251,10 @@ template<typename t_csa,
          typename t_border_select,
          typename t_h,
          typename t_h_select_0,
-         typename t_h_select_1
+         typename t_h_select_1,
+	 typename t_doc_offset
          >
-void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_select,t_h,t_h_select_0, t_h_select_1>& idx,
+void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_select,t_h,t_h_select_0, t_h_select_1, t_doc_offset>& idx,
                const std::string&,
                sdsl::cache_config& cc, uint8_t num_bytes)
 {    
@@ -262,7 +264,7 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
     using idx_type = idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,
-	  t_border_select,t_h,t_h_select_0, t_h_select_1>;
+	  t_border_select,t_h,t_h_select_0, t_h_select_1, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 
     assert(t_df::greedy_order);
@@ -433,26 +435,32 @@ void construct(idx_o<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_selec
 	cout << "sd_vec n and m :\t" <<
 		sd_n << "\t" << sd_m << "\t" << endl;
 	cout << "actual n:\t\t" << darray.size() << endl;
-	sdsl::sd_vector_builder builder(sd_n, sd_m);
+	//sdsl::sd_vector_builder builder(sd_n, sd_m);
+	sdsl::bit_vector plain_bv(sd_n);
 	start = 0;
 	uint64_t cur_pos = 0;
 	for (uint64_t i = 1; i < darray.size(); ++i) {
 		end = h_select_1(i)+1-i;
 		if (start < end) { // Dup lens
 			cur_pos += sa_offset[start] + 1;
-			builder.set(cur_pos);
+			//builder.set(cur_pos);
+			plain_bv[cur_pos] = 1;
 			for (size_t j = start+1; j < end; ++j) {
 				cur_pos += sa_offset[j] - sa_offset[j-1];
-				builder.set(cur_pos);
+				//builder.set(cur_pos);
+				plain_bv[cur_pos] = 1;
 			}
 		}
 		start = end;
 	}
 	// Encode offsets with sd_vector.
-	doc_offset_type doc_offset(builder);
-	cout << "sd_vector:\t\t" << 8*size_in_bytes(doc_offset)/(double)dup.size() << endl;
+	doc_offset_type doc_offset(plain_bv);
+	cout << "offset_vector_size:\t\t" << 8*size_in_bytes(doc_offset)/(double)dup.size() << endl;
 	// Build select.
 	typename doc_offset_type::select_1_type doc_offset_select(&doc_offset);
+	cout << "with select size:\t\t" <<
+		8*(size_in_bytes(doc_offset_select)+size_in_bytes(doc_offset))/
+		(double)dup.size() << endl;	
         store_to_cache(doc_offset, surf::KEY_DOC_OFFSET, cc, true); 
         store_to_cache(doc_offset_select, surf::KEY_DOC_OFFSET_SELECT, cc, true); 
     }

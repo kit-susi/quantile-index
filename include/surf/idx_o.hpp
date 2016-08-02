@@ -229,6 +229,7 @@ public:
         size_type written_bytes = 0;
         written_bytes += m_csa.serialize(out, child, "CSA");
         written_bytes += m_doc_offset.serialize(out, child, "DOC_OFFSET");
+        written_bytes += m_doc_offset_select.serialize(out, child, "DOC_OFFSET_SELECT");
         written_bytes += m_border.serialize(out, child, "BORDER");
         written_bytes += m_border_rank.serialize(out, child, "BORDER_RANK");
         written_bytes += m_h.serialize(out, child, "H");
@@ -240,7 +241,18 @@ public:
         return written_bytes;
     }
 
-    void mem_info()const{}
+    void mem_info()const{
+        std::cout << sdsl::size_in_bytes(m_csa) << ";"; // CSA
+        std::cout << sdsl::size_in_bytes(m_doc_offset)
+		+ sdsl::size_in_bytes(m_doc_offset_select)<< ";"; // DOC 
+        std::cout << sdsl::size_in_bytes(m_border)
+		+ sdsl::size_in_bytes(m_border_rank)<< ";";  // border
+        std::cout << sdsl::size_in_bytes(m_h)
+	       + sdsl::size_in_bytes(m_h_select_0)
+	       + sdsl::size_in_bytes(m_h_select_1)<< ";";  // h
+        std::cout << sdsl::size_in_bytes(m_rmqc) << ";";  // rmq
+        std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
+    }
 };
 
 template<typename t_csa,

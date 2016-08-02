@@ -238,7 +238,16 @@ public:
         return written_bytes;
     }
 
-    void mem_info()const{}
+    void mem_info()const{
+        std::cout << sdsl::size_in_bytes(m_csa) << ";"; // CSA
+        std::cout << sdsl::size_in_bytes(m_doc) << ";"; // DOC 
+        std::cout << sdsl::size_in_bytes(m_border)
+		+ sdsl::size_in_bytes(m_border_rank)<< ";";  // border
+        std::cout << sdsl::size_in_bytes(m_h)
+	       + sdsl::size_in_bytes(m_h_select)<< ";";  // h
+        std::cout << sdsl::size_in_bytes(m_rmqc) << ";";  // rmq
+        std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
+    }
 };
 
 template<typename t_cst,

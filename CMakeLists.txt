@@ -11,7 +11,7 @@ INCLUDE_DIRECTORIES(${CMAKE_HOME_DIRECTORY}/include
                     ${CMAKE_HOME_DIRECTORY}/external/cppzmq/
                     ${CMAKE_HOME_DIRECTORY}/external/zeromq/include/
                     ${CMAKE_BINARY_DIR}/external/sdsl-lite/include
-                    ${CMAKE_BINARY_DIR}/external/sdsl-lite/external/libdivsufsort/include
+                    ${CMAKE_BINARY_DIR}/external/sdsl-lite/external/libdivsufsort-2.0.1/include
                     )
 
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/external/sdsl-lite/lib

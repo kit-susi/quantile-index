@@ -242,15 +242,15 @@ public:
     }
 
     void mem_info()const{
-        std::cout << sdsl::size_in_bytes(m_csa) << ";"; // CSA
+        std::cout << sdsl::size_in_bytes(m_csa) +
+		sdsl::size_in_bytes(m_border) +
+		sdsl::size_in_bytes(m_border_rank)<< ";"; // CSA
         std::cout << sdsl::size_in_bytes(m_doc_offset)
 		+ sdsl::size_in_bytes(m_doc_offset_select)<< ";"; // DOC 
-        std::cout << sdsl::size_in_bytes(m_border)
-		+ sdsl::size_in_bytes(m_border_rank)<< ";";  // border
         std::cout << sdsl::size_in_bytes(m_h)
 	       + sdsl::size_in_bytes(m_h_select_0)
-	       + sdsl::size_in_bytes(m_h_select_1)<< ";";  // h
-        std::cout << sdsl::size_in_bytes(m_rmqc) << ";";  // rmq
+	       + sdsl::size_in_bytes(m_h_select_1)<< ";";  // H
+        std::cout << sdsl::size_in_bytes(m_rmqc) << ";";  // RMQ
         std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
     }
 };

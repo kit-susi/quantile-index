@@ -95,3 +95,5 @@ ADD_EXECUTABLE(surf2dcc13 tools/surf2dcc13.cpp)
 TARGET_LINK_LIBRARIES(surf2dcc13 sdsl)
 
 
+ADD_EXECUTABLE(tokenize_text tools/tokenize_text.cpp)
+TARGET_LINK_LIBRARIES(tokenize_text sdsl)

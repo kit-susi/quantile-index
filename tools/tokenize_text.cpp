@@ -63,6 +63,7 @@ int main(int argc, char* argv[]){
 		    ++i;
 	    }
     }
+    util::bit_compress(text);
     //for (const auto& w : text) cout << w << " "; cout << endl;
     store_to_file(text, "text_int_SURF.sdsl");
     { // Output dictionary.

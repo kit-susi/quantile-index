@@ -60,6 +60,8 @@ EXP2COLINT:=$(call config_column,experiment2.COL_INT.config,1)
 EXP2K:=$(call config_column,experiment2.config,1)
 EXP2LEN:=$(call config_column,experiment2.config,2)
 EXP2LENINT:=$(call config_column,experiment2.config,3)
+EXP2SNIPPETSIZE:=$(call config_column,experiment2.config,4)
+EXP2SNIPPETSIZEINT:=$(call config_column,experiment2.config,5)
 EXP2RES:=$(foreach IDX,$(EXP2IDX),\
 			$(foreach COL,$(EXP2COL),results/experiment2.$(IDX).$(COL).byte.txt))
 EXP2RESINT:=$(foreach IDX,$(EXP2IDXINT),\
@@ -77,14 +79,14 @@ results/experiment2.%.byte.txt:
 	$(eval IDX:=$(call dim,1,$*))
 	$(eval COL:=$(call dim,2,$*))
 	../build/surf_query-$(IDX) -c ../collections/$(COL) \
-		-q pattern/$(COL).$(EXP2LEN).byte.txt -k $(EXP2K) \
+		-q pattern/$(COL).$(EXP2LEN).byte.txt -k $(EXP2K) -s $(EXP2SNIPPETSIZE)\
 		> $@
 
 results/experiment2.%.int.txt: 
 	$(eval IDX:=$(call dim,1,$*))
 	$(eval COL:=$(call dim,2,$*))
 	../build/surf_query-$(IDX) -c ../collections/$(COL) \
-		-q pattern/$(COL).$(EXP2LENINT).int.txt -k $(EXP2K) \
+		-q pattern/$(COL).$(EXP2LENINT).int.txt -k $(EXP2K) -s $(EXP2SNIPPETSIZEINT)\
 		> $@
 
 results/experiment2.txt: exp2.txt $(EXP2PAT) $(EXP2RES) $(EXP2PATINT) $(EXP2RESINT)

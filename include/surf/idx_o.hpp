@@ -105,6 +105,13 @@ public:
                 }
             }
 
+	    auto extract_snippet(const uint64_t k) const {
+		uint64_t s = m_doc_val.first == 0 ?
+			0 : (m_idx->m_border_select(m_doc_val.first)+1);
+		uint64_t e = std::min(s + k, m_idx->m_csa.size());
+		return extract(m_idx->m_csa, s, e);
+	    }
+
             top_k_iterator& operator++(){
                 if ( m_valid ){
                     m_valid = false;

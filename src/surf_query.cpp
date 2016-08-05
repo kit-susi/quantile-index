@@ -23,6 +23,7 @@ typedef struct cmdargs {
     bool verbose = false;
     bool multi_occ = false;
     bool match_only = false;
+    uint64_t snippet_size = 0;
 } cmdargs_t;
 
 void
@@ -36,6 +37,7 @@ print_usage(char* program)
     fprintf(stdout,"  -v <verbose>  : verbose mode.\n");
     fprintf(stdout,"  -m <multi_occ>  : only retrieve documents which contain the term more than once.\n");
     fprintf(stdout,"  -o <multi_occ>  : only match pattern; no document retrieval.\n");
+    fprintf(stdout,"  -s <snippet_size>  : extract snippets of size snippet_size.\n");
 };
 
 cmdargs_t
@@ -46,7 +48,7 @@ parse_args(int argc,char* const argv[])
     args.collection_dir = "";
     args.query_file = "";
     args.k = 10;
-    while ((op=getopt(argc,argv,"c:q:k:vmo")) != -1) {
+    while ((op=getopt(argc,argv,"c:q:k:vmos:")) != -1) {
         switch (op) {
             case 'c':
                 args.collection_dir = optarg;
@@ -66,6 +68,9 @@ parse_args(int argc,char* const argv[])
             case 'o':
                 args.match_only = true;
                 break;
+	    case 's':
+		args.snippet_size = std::strtoul(optarg,NULL,10);
+		break;
             case '?':
             default:
                 print_usage(argv[0]);
@@ -168,6 +173,10 @@ int main(int argc, char* argv[])
             if ( args.verbose ) {
                 cout<<q_cnt<<";"<<x<<";"<<(*res_it).first<< ";"<<(*res_it).second << endl;
             }
+	    if (args.snippet_size != 0) {
+		if (args.verbose)
+			cout << res_it.extract_snippet(args.snippet_size) << endl;
+	    }
             if ( x < args.k ) 
                 ++res_it;
         }

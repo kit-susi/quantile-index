@@ -9,6 +9,13 @@ using namespace std;
 
 const string SEP = "\1";
 
+
+bool valid(const string& str) {
+	if (str.size() < 2)
+		return false;
+	return true;
+}
+
 int main(int argc, char* argv[]){
     if ( argc < 2 ){
         cout<<"Usage: "<<argv[0]<<" file_name"<<endl;
@@ -33,11 +40,14 @@ int main(int argc, char* argv[]){
 	    for (const auto& word : tokens) {
 		    if (word == SEP) {
 			num_docs++;
-		    } else if(dictionary.count(word) == 0) {
-			uint64_t id = dictionary.size();
-			dictionary[word] = id;
+		    	total_size++;
+		    } else if (valid(word)) {
+			if(dictionary.count(word) == 0) {
+				uint64_t id = dictionary.size();
+				dictionary[word] = id;
+			}
+		    	total_size++;
 		    }
-		    total_size++;
 	    }
     }
     cout << "num_docs " << num_docs << endl;
@@ -56,19 +66,26 @@ int main(int argc, char* argv[]){
 	    for (const auto& word : tokens) {
 		    if (word == SEP) {
 		  	text[i] = 1;	  	
-		    } else if(dictionary.count(word)) {
-			text[i] = dictionary[word]+2; // +2 because \0 \1 seperators.
-			++word_count[dictionary[word]];
+		    	++i;
+		    } else if (valid(word)) {
+			if(dictionary.count(word)) {
+				text[i] = dictionary[word]+2; // +2 because \0 \1 seperators.
+				++word_count[dictionary[word]];
+			}
+		    	++i;
 		    }
-		    ++i;
 	    }
     }
     util::bit_compress(text);
     //for (const auto& w : text) cout << w << " "; cout << endl;
     store_to_file(text, "text_int_SURF.sdsl");
+    // Sort dict.
+    vector<pair<string,int>> dict(dictionary.begin(), dictionary.end());
+    sort(dict.begin(), dict.end(),  [&](const auto&a, const auto&b) { 
+		    return word_count[a.second] > word_count[b.second]; });
     { // Output dictionary.
 	fstream fout("dict.txt", ios::out);
-	for (const auto& entry : dictionary) {
+	for (const auto& entry : dict) {
 		fout << entry.first << " " << entry.second + 2 << " " <<
 		word_count[entry.second] << endl;	
 	}

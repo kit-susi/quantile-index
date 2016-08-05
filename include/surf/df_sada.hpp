@@ -305,7 +305,7 @@ void construct(df_sada<t_bv,t_sel,t_alphabet, greedy_order> &idx, const string& 
     using cst_type = typename df_sada<t_bv,t_sel,t_alphabet, greedy_order>::cst_type;
     if (!cache_file_exists<cst_type>(KEY_TMPCST, cc)) {
         auto event = memory_monitor::event("construct cst");
-        cst_type cst = cst_type(cc);
+        cst_type cst = cst_type(cc,true);
         store_to_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
     } 
 

@@ -107,6 +107,19 @@ struct myline<sdsl::int_alphabet_tag> {
 };
 
 
+template<typename T>
+uint64_t get_input_size(string dir) {
+	sdsl::int_vector<8> text;
+	sdsl::load_from_file(text, dir + "/text_SURF.sdsl");
+	return size_in_bytes(text);
+}
+template<>
+uint64_t get_input_size<sdsl::int_alphabet_tag>(string dir) {
+	sdsl::int_vector<> text;
+	sdsl::load_from_file(text, dir + "/text_int_SURF.sdsl");
+	return size_in_bytes(text);
+}
+
 int main(int argc, char* argv[])
 {
 
@@ -177,5 +190,8 @@ int main(int argc, char* argv[])
         cout<<"# time_per_doc = " << doc_time << endl;
         cout<<"# check_sum = "<<sum<<endl;
         cout<<"# check_sum_fdt = "<<sum_fdt<<endl;
+        cout<<"# index_size =  "<<size_in_bytes(idx)<<endl;
+	cout<<"# input_size = "<<
+		get_input_size<idx_type::alphabet_category>(args.collection_dir)<<endl;
     }
 }

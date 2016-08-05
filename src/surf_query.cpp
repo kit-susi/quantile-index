@@ -174,8 +174,11 @@ int main(int argc, char* argv[])
                 cout<<q_cnt<<";"<<x<<";"<<(*res_it).first<< ";"<<(*res_it).second << endl;
             }
 	    if (args.snippet_size != 0) {
-		if (args.verbose)
-			cout << res_it.extract_snippet(args.snippet_size) << endl;
+		auto snippet = res_it.extract_snippet(args.snippet_size);
+		if (args.verbose) {
+			for (const auto c : snippet)
+				cout << c; cout << endl;
+		}
 	    }
             if ( x < args.k ) 
                 ++res_it;

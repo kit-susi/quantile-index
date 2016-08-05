@@ -186,7 +186,7 @@ int main(int argc, char* argv[])
         cout<<"# queries = " <<q_cnt <<endl;
         auto exec_time = chrono::duration_cast<chrono::microseconds>(elapsed).count();
         cout<<"# time_per_query = "<< exec_time/q_cnt <<endl;
-        auto doc_time = sum == 0 ? 0.0 : ((double)exec_time)/(sum);
+        auto doc_time = sum == 0 ? 0.0 : ((double)exec_time)/(sum*q_cnt);
         cout<<"# time_per_doc = " << doc_time << endl;
         cout<<"# check_sum = "<<sum<<endl;
         cout<<"# check_sum_fdt = "<<sum_fdt<<endl;

@@ -105,10 +105,11 @@ public:
                 }
             }
 
-	    auto extract_snippet(const uint64_t k) const {
-		uint64_t s = m_doc_val.first == 0 ?
+	    auto extract_snippet(const size_type k) const {
+		size_type s = m_doc_val.first == 0 ?
 			0 : (m_idx->m_border_select(m_doc_val.first)+1);
-		uint64_t e = std::min(s + k, m_idx->m_csa.size());
+		size_type e = std::min(s + k,
+				m_idx->m_border_select(m_doc_val.first+1)-1);
 		return extract(m_idx->m_csa, s, e);
 	    }
 

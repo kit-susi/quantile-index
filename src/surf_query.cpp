@@ -159,6 +159,7 @@ int main(int argc, char* argv[])
     size_t sum = 0;
     size_t sum_fdt = 0;
     bool tle = false; // flag: time limit exceeded
+    size_t sum_chars_extracted = 0;
     auto start = timer::now();
     while (!tle and in.getline(buffer, buf_size)) {
         auto q_start = timer::now();
@@ -175,6 +176,7 @@ int main(int argc, char* argv[])
             }
 	    if (args.snippet_size != 0) {
 		auto snippet = res_it.extract_snippet(args.snippet_size);
+		sum_chars_extracted += snippet.size();
 		if (args.verbose) {
 			for (const auto c : snippet)
 				cout << c; cout << endl;
@@ -205,5 +207,6 @@ int main(int argc, char* argv[])
         cout<<"# index_size =  "<<size_in_bytes(idx)<<endl;
 	cout<<"# input_size = "<<
 		get_input_size<idx_type::alphabet_category>(args.collection_dir)<<endl;
+	cout<<"# sum_chars_extracted = "<<sum_chars_extracted<<endl;
     }
 }

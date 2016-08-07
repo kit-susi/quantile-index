@@ -247,6 +247,7 @@ public:
     }
 
     void mem_info()const{
+	std::cout<<"Dupsize "<<m_doc.size()<<std::endl;
         std::cout << sdsl::size_in_bytes(m_csa) +
 		sdsl::size_in_bytes(m_border) +
 		sdsl::size_in_bytes(m_border_rank)<< ";"; // CSA

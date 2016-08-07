@@ -16,6 +16,26 @@ bool valid(const string& str) {
 	return true;
 }
 
+string space() {
+	string res = "";
+	for(int a = 0; a < 256; ++a) {
+		char c(a);
+		if (std::isspace(c))
+			res += c;
+	}
+	return res+"\1";
+}
+
+string punct() {
+	string res = "";
+	for(int a = 0; a < 256; ++a) {
+		char c(a);
+		if (std::ispunct(c))
+			res += c;
+	}
+	return res;
+}
+
 int main(int argc, char* argv[]){
     if ( argc < 2 ){
         cout<<"Usage: "<<argv[0]<<" file_name"<<endl;
@@ -29,6 +49,7 @@ int main(int argc, char* argv[]){
     //store_to_file(text, "text_int_SURF.sdsl");
     typedef boost::tokenizer<boost::char_separator<char>,
 	    std::istreambuf_iterator<char> > tokenizer;
+    boost::char_separator<char> sep(punct().c_str(), space().c_str());
     unordered_map<string,uint64_t> dictionary; 
     uint64_t num_docs = 1;
     uint64_t total_size = 0;
@@ -36,7 +57,7 @@ int main(int argc, char* argv[]){
 	    ifstream ifile(argv[1]);
 	    istreambuf_iterator<char> file_iter(ifile);
 	    istreambuf_iterator<char> end_of_stream;
-	    tokenizer tokens(file_iter,end_of_stream);
+	    tokenizer tokens(file_iter,end_of_stream,sep);
 	    for (const auto& word : tokens) {
 		    if (word == SEP) {
 			num_docs++;
@@ -61,7 +82,7 @@ int main(int argc, char* argv[]){
     	    ifstream ifile(argv[1]);
 	    istreambuf_iterator<char> file_iter(ifile);
 	    istreambuf_iterator<char> end_of_stream;
-	    tokenizer tokens(file_iter,end_of_stream);
+	    tokenizer tokens(file_iter,end_of_stream,sep);
 	    uint64_t i  = 0;
 	    for (const auto& word : tokens) {
 		    if (word == SEP) {

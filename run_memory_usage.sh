@@ -1,13 +1,15 @@
-./build/surf_index-IDX_NN -c /fast-data1/labeit/collections/ENWIKIBIG -m m > mem_big_nn &
-./build/surf_index-IDX_O -c /fast-data1/labeit/collections/ENWIKIBIG -m m > mem_big_o &
-
-./build/surf_index-IDX_NN -c /fast-data1/labeit/collections/ENWIKISML -m m > mem_sml_nn &
-./build/surf_index-IDX_O -c /fast-data1/labeit/collections/ENWIKISML -m m > mem_sml_o &
-
-./build/surf_index-IDX_NN_INT -c /fast-data1/labeit/collections/ENWIKIBIGINT -m m > mem_big_nn_int &
-./build/surf_index-IDX_O_INT -c /fast-data1/labeit/collections/ENWIKIBIGINT -m m > mem_big_o_int &
-
-./build/surf_index-IDX_NN_INT -c /fast-data1/labeit/collections/ENWIKISMLINT -m m > mem_sml_nn_int &
-./build/surf_index-IDX_O_INT -c /fast-data1/labeit/collections/ENWIKISMLINT -m m > mem_sml_o_int &
-wait
-echo "Done"
+for COL in ENWIKISML ENWIKIBIG REVISIONS TWITTER
+do
+	echo $COL
+	./build/surf_index-IDX_NN -c collections/$COL -m m | tail -2 
+	for IDX in O_SD O_HYB O
+	do
+		./build/surf_index-IDX_$IDX -c collections/$COL -m m | tail -1 
+	done
+	echo $COL"INT"
+	./build/surf_index-IDX_NN -c collections/$COL"INT" -m m | tail -2 
+	for IDX in O_SD_INT O_HYB_INT O_INT
+	do
+		./build/surf_index-IDX_$IDX -c collections/$COL"INT" -m m | tail -1 
+	done
+done

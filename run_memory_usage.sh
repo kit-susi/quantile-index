@@ -1,4 +1,4 @@
-for COL in ENWIKISML ENWIKIBIG REVISIONS TWITTER
+for COL in ENWIKISML ENWIKIBIG REVISIONS REDDIT
 do
 	echo $COL
 	./build/surf_index-IDX_NN -c collections/$COL -m m | tail -2 

@@ -160,43 +160,52 @@ int main(int argc, char* argv[])
     }
 
     using timer = chrono::high_resolution_clock;
-    size_t q_len = 0;
-    size_t q_cnt = 0;
+    auto start = timer::now();
     size_t sum = 0;
     size_t sum_fdt = 0;
     bool tle = false; // flag: time limit exceeded
     size_t sum_chars_extracted = 0;
-    auto start = timer::now();
-    for(size_t i = 0; i < !tle && queries.size(); ++i) {
-        auto q_start = timer::now();
-        auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
-        q_len += query.size();
-        ++q_cnt;
-        size_t x = 0;
-        auto res_it = idx.topk(query.begin(), query.end(),args.multi_occ,args.match_only);
-        while ( x < args.k and res_it ){
-            ++x;
-            sum_fdt += (*res_it).second;
-            if ( args.verbose ) {
-                cout<<q_cnt<<";"<<x<<";"<<(*res_it).first<< ";"<<(*res_it).second << endl;
-            }
-	    if (args.snippet_size != 0) {
-		auto snippet = res_it.extract_snippet(args.snippet_size);
-		sum_chars_extracted += snippet.size();
-		if (args.verbose) {
-			for (const auto c : snippet)
-				cout << c; cout << endl;
+    size_t q_len = 0;
+    size_t q_cnt = 0;
+    for (int run = 0; run < 3; ++run) { // Run twice before measuring.
+	    sum = 0;
+	    sum_fdt = 0;
+	    tle = false;
+	    sum_chars_extracted = 0;
+    	    q_len = 0;
+    	    q_cnt = 0;
+	    start = timer::now(); // Reset timer.
+	    for(size_t i = 0; i < !tle && queries.size(); ++i) {
+		auto q_start = timer::now();
+		auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
+		q_len += query.size();
+		++q_cnt;
+		size_t x = 0;
+		auto res_it = idx.topk(query.begin(), query.end(),args.multi_occ,args.match_only);
+		while ( x < args.k and res_it ){
+		    ++x;
+		    sum_fdt += (*res_it).second;
+		    if ( args.verbose ) {
+			cout<<q_cnt<<";"<<x<<";"<<(*res_it).first<< ";"<<(*res_it).second << endl;
+		    }
+		    if (args.snippet_size != 0) {
+			auto snippet = res_it.extract_snippet(args.snippet_size);
+			sum_chars_extracted += snippet.size();
+			if (args.verbose) {
+				for (const auto c : snippet)
+					cout << c; cout << endl;
+			}
+		    }
+		    if ( x < args.k ) 
+			++res_it;
+		}
+		sum += x;
+		auto q_time = timer::now()-q_start;
+		// single query should not take more then 5 seconds
+		if (chrono::duration_cast<chrono::seconds>(q_time).count() > 5) {
+		    tle = true;
 		}
 	    }
-            if ( x < args.k ) 
-                ++res_it;
-        }
-        sum += x;
-        auto q_time = timer::now()-q_start;
-        // single query should not take more then 5 seconds
-        if (chrono::duration_cast<chrono::seconds>(q_time).count() > 5) {
-            tle = true;
-        }
     }
     auto stop = timer::now();
     auto elapsed = stop-start;

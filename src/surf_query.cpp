@@ -161,14 +161,14 @@ int main(int argc, char* argv[])
 
     using timer = chrono::high_resolution_clock;
     auto start = timer::now();
-    auto min_elapsed = (timer::now() - start).max();
+    vector<decltype(timer::now() - start)> timings;
     size_t sum = 0;
     size_t sum_fdt = 0;
     bool tle = false; // flag: time limit exceeded
     size_t sum_chars_extracted = 0;
     size_t q_len = 0;
     size_t q_cnt = 0;
-    for (int run = 0; run < 3; ++run) { // Run twice before measuring.
+    for (int run = 0; run < 11; ++run) {
 	    sum = 0;
 	    sum_fdt = 0;
 	    tle = false;
@@ -208,14 +208,13 @@ int main(int argc, char* argv[])
 		}
 	    }
     	auto stop = timer::now();
-    	auto elapsed = stop-start;
-	min_elapsed = std::min(elapsed, min_elapsed);
+	timings.push_back(stop-start);
     }
     if ( !args.verbose ){
         cout<<"# TLE = " << tle << endl;
         cout<<"# query_len = "<<q_len/q_cnt<<endl;
         cout<<"# queries = " <<q_cnt <<endl;
-        auto exec_time = chrono::duration_cast<chrono::microseconds>(min_elapsed).count();
+        auto exec_time = chrono::duration_cast<chrono::microseconds>(timings[timings.size()/2]).count();
         cout<<"# time_per_query = "<< exec_time/q_cnt <<endl;
         auto doc_time = sum == 0 ? 0.0 : ((double)exec_time)/(sum*q_cnt);
         cout<<"# time_per_doc = " << doc_time << endl;

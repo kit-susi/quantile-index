@@ -155,8 +155,8 @@ int main(int argc, char* argv[])
     vector<string> queries;
     { // Load all queries.
 	string str;
-	std::getline(in, str);	
-	queries.push_back(str);
+	while (std::getline(in, str))
+		queries.push_back(str);
     }
 
     using timer = chrono::high_resolution_clock;
@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
     	    q_len = 0;
     	    q_cnt = 0;
 	    start = timer::now(); // Reset timer.
-	    for(size_t i = 0; i < !tle && i < queries.size(); ++i) {
+	    for(size_t i = 0; !tle && i < queries.size(); ++i) {
 		auto q_start = timer::now();
 		auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
 		q_len += query.size();

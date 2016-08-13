@@ -85,6 +85,5 @@ int main(int argc,char* const argv[])
     if(args.print_memusage) {
         index.mem_info();
     }
-
     return EXIT_SUCCESS;
 }

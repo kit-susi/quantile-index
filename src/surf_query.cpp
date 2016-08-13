@@ -93,14 +93,14 @@ char   buffer[buf_size];
 
 template<typename X>
 struct myline {
-    static string parse(char* str) {
-        return string(str);
+    static string parse(const string& str) {
+	    return str;
     }
 };
 
 template<>
 struct myline<sdsl::int_alphabet_tag> {
-    static vector<uint64_t> parse(char* str) {
+    static vector<uint64_t> parse(const string& str) {
         vector<uint64_t> res;
         stringstream ss(str);
         uint64_t x;
@@ -152,6 +152,12 @@ int main(int argc, char* argv[])
         cerr << "Could not load pattern file" << endl;
         return 1;
     }
+    vector<string> queries;
+    { // Load all queries.
+	string str;
+	std::getline(in, str);	
+	queries.push_back(str);
+    }
 
     using timer = chrono::high_resolution_clock;
     size_t q_len = 0;
@@ -161,9 +167,9 @@ int main(int argc, char* argv[])
     bool tle = false; // flag: time limit exceeded
     size_t sum_chars_extracted = 0;
     auto start = timer::now();
-    while (!tle and in.getline(buffer, buf_size)) {
+    for(size_t i = 0; i < !tle && queries.size(); ++i) {
         auto q_start = timer::now();
-        auto query = myline<idx_type::alphabet_category>::parse(buffer);
+        auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
         q_len += query.size();
         ++q_cnt;
         size_t x = 0;

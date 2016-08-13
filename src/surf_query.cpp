@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
     size_t sum_chars_extracted = 0;
     size_t q_len = 0;
     size_t q_cnt = 0;
-    for (int run = 0; run < 11; ++run) {
+    for (int run = 0; run < 3; ++run) {
 	    sum = 0;
 	    sum_fdt = 0;
 	    tle = false;
@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
     	    q_len = 0;
     	    q_cnt = 0;
 	    start = timer::now(); // Reset timer.
-	    for(size_t i = 0; i < !tle && queries.size(); ++i) {
+	    for(size_t i = 0; i < !tle && i < queries.size(); ++i) {
 		auto q_start = timer::now();
 		auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
 		q_len += query.size();

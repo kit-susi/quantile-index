@@ -42,12 +42,12 @@ exp1.txt: ../build/surf_index-$(EXP1IDX) ../collections/$(EXP1COL)
 pattern/%.byte.txt: ../build/gen_patterns
 	$(eval COL:=$(call dim,1,$*)) 
 	$(eval LEN:=$(call dim,2,$*)) 
-	../build/gen_patterns$(SUF) -c ../collections/$(COL) -m $(LEN) -x 400000 > $@
+	../build/gen_patterns$(SUF) -c ../collections/$(COL) -m $(LEN) -x 40000 > $@
 
 pattern/%.int.txt: ../build/gen_patterns_int
 	$(eval COL:=$(call dim,1,$*)) 
 	$(eval LEN:=$(call dim,2,$*)) 
-	../build/gen_patterns_int -c ../collections/$(COL) -m $(LEN) -x 400000 > $@
+	../build/gen_patterns_int -c ../collections/$(COL) -m $(LEN) -x 40000 > $@
 
 
 
@@ -90,7 +90,8 @@ results/experiment2.%.int.txt:
 		-q pattern/$(COL).$(EXP2LENINT).int.txt -k $(EXP2K) -s $(EXP2SNIPPETSIZEINT)\
 		> $@
 
-results/experiment2.txt: exp2.txt $(EXP2PAT) $(EXP2RES) $(EXP2PATINT) $(EXP2RESINT)
+#results/experiment2.txt: exp2.txt $(EXP2PAT) $(EXP2RES) $(EXP2PATINT) $(EXP2RESINT)
+results/experiment2.txt: $(EXP2PAT) $(EXP2RES) $(EXP2PATINT) $(EXP2RESINT)
 	@cat $(EXP2RES) $(EXP2RESINT) > $@
 
 exp2.txt: $(EXP2) $(EXP2INT)

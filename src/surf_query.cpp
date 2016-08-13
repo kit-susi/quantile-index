@@ -214,6 +214,7 @@ int main(int argc, char* argv[])
         cout<<"# TLE = " << tle << endl;
         cout<<"# query_len = "<<q_len/q_cnt<<endl;
         cout<<"# queries = " <<q_cnt <<endl;
+	sort(timings.begin(), timings.end());
         auto exec_time = chrono::duration_cast<chrono::microseconds>(timings[timings.size()/2]).count();
         cout<<"# time_per_query = "<< exec_time/q_cnt <<endl;
         auto doc_time = sum == 0 ? 0.0 : ((double)exec_time)/(sum*q_cnt);

@@ -99,3 +99,6 @@ TARGET_LINK_LIBRARIES(tokenize_text sdsl)
 
 ADD_EXECUTABLE(input_size tools/input_size.cpp)
 TARGET_LINK_LIBRARIES(input_size sdsl)
+
+ADD_EXECUTABLE(greedy_patch tools/greedy_patch.cpp)
+TARGET_LINK_LIBRARIES(greedy_patch sdsl)

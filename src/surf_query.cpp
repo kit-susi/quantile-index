@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
     size_t sum_chars_extracted = 0;
     size_t q_len = 0;
     size_t q_cnt = 0;
-    for (int run = 0; run < 3; ++run) {
+    for (int run = 0; run < 1; ++run) {
 	    sum = 0;
 	    sum_fdt = 0;
 	    tle = false;

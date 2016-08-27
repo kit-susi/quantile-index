@@ -54,7 +54,10 @@ template<typename t_csa,
          typename t_border_rank = typename t_border::rank_1_type,
          typename t_border_select = typename t_border::select_1_type,
          typename t_h = sdsl::rrr_vector<63>,
-         typename t_h_select = typename t_h::select_1_type
+         typename t_h_select_0 = typename t_h::select_0_type,
+         typename t_h_select_1 = typename t_h::select_1_type,
+	 bool 	  offset_encoding = true,
+	 typename t_doc_offset = sdsl::hyb_sd_vector<>
          >
 class idx_nn{
 public:
@@ -64,20 +67,26 @@ public:
     typedef t_border_rank                              border_rank_type;
     typedef t_border_select                            border_select_type;
     typedef t_h                                        h_type;
-    typedef t_h_select                                 h_select_type;
+    typedef t_h_select_0                               h_select_0_type;
+    typedef t_h_select_1                               h_select_1_type;
     typedef t_rmq                                      rmqc_type;
     typedef t_k2treap                                  k2treap_type;
     typedef k2_treap_ns::top_k_iterator<k2treap_type>  k2treap_iterator;
     typedef typename t_csa::alphabet_category          alphabet_category;
+    typedef t_doc_offset			       doc_offset_type;
+    typedef typename t_doc_offset::select_1_type       doc_offset_select_type;
 
-    typedef map_to_dup_type<h_select_type> map_to_h_type;
+    typedef map_to_dup_type<h_select_1_type> map_to_h_type;
 public:
     csa_type           m_csa;
     border_type        m_border;
     border_rank_type   m_border_rank;
     border_select_type m_border_select;
     h_type            m_h;
-    h_select_type     m_h_select;
+    h_select_0_type    	m_h_select_0;
+    h_select_1_type    	m_h_select_1;
+    doc_offset_type 	m_doc_offset; // offset representation of documents in node list 
+    doc_offset_select_type m_doc_offset_select;
     int_vector<>       m_doc; // documents in node lists
     rmqc_type          m_rmqc;
     k2treap_type       m_k2treap;
@@ -137,7 +146,8 @@ public:
                     m_valid = false;
                     if ( m_k2_iter ) { // multiple occurrence result exists
                         auto xy_w       = *m_k2_iter;
-                        uint64_t doc_id = m_idx->m_doc[real(xy_w.first)]; 
+                        uint64_t doc_id = offset_encoding ?
+				m_idx->get_doc(real(xy_w.first)) : m_idx->m_doc[real(xy_w.first)]; 
                         m_doc_val = t_doc_val(doc_id, xy_w.second+1);
                         m_reported.insert(doc_id);
                         m_valid = true;
@@ -196,6 +206,23 @@ public:
         return res;
     }
 
+    // Decode m_doc value at postion index by using offset encoding.
+    uint64_t get_doc(const uint64_t index) const {
+	// All sa offsets are relative to sa_base_pos (rightmost leaf of left subtree).
+	uint64_t sa_base_pos = m_h_select_0(index+1) - index + 1;
+	uint64_t base_index = // Index of first dup entry in the node.
+			m_h_select_1(sa_base_pos-1) + 2 - sa_base_pos;
+	uint64_t sa_delta = // Extract delta from base index to index.
+		(base_index == 0) ?
+			m_doc_offset_select(index+1) :
+			m_doc_offset_select(index+1) - m_doc_offset_select(base_index);
+	--sa_delta; // Because zero deltas can't be encoded otherwise.
+	uint64_t sa_pos = sa_base_pos + sa_delta;
+	uint64_t text_pos = m_csa[sa_pos];
+	return m_border_rank(text_pos);
+    }
+
+
     auto doc(uint64_t doc_id) -> decltype(extract(m_csa,0,0)) {
         size_type doc_begin=0;
         if ( doc_id ) {
@@ -217,29 +244,45 @@ public:
 
     void load(sdsl::cache_config& cc){
         load_from_cache(m_csa, surf::KEY_CSA, cc, true);
-        load_from_cache(m_doc, surf::KEY_DUP, cc);
+	if (offset_encoding) {
+        	load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET, cc, true);
+        	load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT, cc, true);
+	} else {
+        	load_from_cache(m_doc, surf::KEY_DUP, cc);
+	}
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true); 
         load_from_cache(m_border_rank, surf::KEY_DOCBORDER_RANK, cc, true); 
         m_border_rank.set_vector(&m_border);
         load_from_cache(m_border_select, surf::KEY_DOCBORDER_SELECT, cc, true); 
         m_border_select.set_vector(&m_border);
         load_from_cache(m_h, surf::KEY_H, cc, true);
-        load_from_cache(m_h_select, surf::KEY_H_SELECT, cc, true);
-        m_h_select.set_vector(&m_h);
-        m_map_to_h = map_to_h_type(&m_h_select);
+        load_from_cache(m_h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        load_from_cache(m_h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        m_h_select_0.set_vector(&m_h);
+        m_h_select_1.set_vector(&m_h);
+        m_map_to_h = map_to_h_type(&m_h_select_1);
         load_from_cache(m_rmqc, surf::KEY_RMQC, cc, true); 
-        load_from_cache(m_k2treap, surf::KEY_W_AND_P, cc, true); 
+	if (offset_encoding)
+        	load_from_cache(m_k2treap, surf::KEY_W_AND_P_G, cc, true); 
+	else
+        	load_from_cache(m_k2treap, surf::KEY_W_AND_P, cc, true); 
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v=nullptr, std::string name="")const {
         structure_tree_node* child = structure_tree::add_child(v, name, util::class_name(*this));
         size_type written_bytes = 0;
         written_bytes += m_csa.serialize(out, child, "CSA");
-        written_bytes += m_doc.serialize(out, child, "DOC");
+	if (offset_encoding) {
+        	written_bytes += m_doc_offset.serialize(out, child, "DOC_OFFSET");
+        	written_bytes += m_doc_offset_select.serialize(out, child, "DOC_OFFSET_SELECT");
+	} else {
+        	written_bytes += m_doc.serialize(out, child, "DOC");
+	}
         written_bytes += m_border.serialize(out, child, "BORDER");
         written_bytes += m_border_rank.serialize(out, child, "BORDER_RANK");
         written_bytes += m_h.serialize(out, child, "H");
-        written_bytes += m_h_select.serialize(out, child, "H_SELECT");
+        written_bytes += m_h_select_0.serialize(out, child, "H_SELECT_0");
+        written_bytes += m_h_select_1.serialize(out, child, "H_SELECT_1");
         written_bytes += m_rmqc.serialize(out, child, "RMQ_C");
         written_bytes += m_k2treap.serialize(out, child, "W_AND_P");
         structure_tree::add_size(child, written_bytes);
@@ -251,9 +294,15 @@ public:
         std::cout << sdsl::size_in_bytes(m_csa) +
 		sdsl::size_in_bytes(m_border) +
 		sdsl::size_in_bytes(m_border_rank)<< ";"; // CSA
-	std::cout << sdsl::size_in_bytes(m_doc) << ";"; // DOC
+	if (offset_encoding) {
+        	std::cout << sdsl::size_in_bytes(m_doc_offset)
+			+ sdsl::size_in_bytes(m_doc_offset_select)<< ";"; // DOC 
+	} else {
+		std::cout << sdsl::size_in_bytes(m_doc) << ";"; // DOC
+	}
         std::cout << sdsl::size_in_bytes(m_h)
-	       + sdsl::size_in_bytes(m_h_select)<< ";";  // H
+	       + sdsl::size_in_bytes(m_h_select_0) 
+	       + sdsl::size_in_bytes(m_h_select_1)<< ";";  // H
         std::cout << sdsl::size_in_bytes(m_rmqc) << ";";  // RMQ
         std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
     }
@@ -290,9 +339,13 @@ template<typename t_csa,
          typename t_border_rank,
          typename t_border_select,
          typename t_h,
-         typename t_h_select
+         typename t_h_select_0,
+         typename t_h_select_1,
+	 bool 	  offset_encoding,
+	 typename t_doc_offset
          >
-void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_select,t_h,t_h_select>& idx,
+void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_select,t_h,
+		t_h_select_1, t_h_select_1, offset_encoding, t_doc_offset>& idx,
                const std::string&,
                sdsl::cache_config& cc, uint8_t num_bytes)
 {    
@@ -301,8 +354,22 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
     using t_df = DF_TYPE;
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
+    using idx_type = idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,
+	  t_border_select,t_h,t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
+    using doc_offset_type = typename idx_type::doc_offset_type;
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
+
+    const auto key_w_and_p = offset_encoding ?
+	    surf::KEY_W_AND_P_G : surf::KEY_W_AND_P;
+    const auto key_p = offset_encoding ?
+	    surf::KEY_P_G : surf::KEY_P;
+    const auto key_dup = offset_encoding ?
+	    surf::KEY_DUP_G : surf::KEY_DUP;
+    const auto key_weights = offset_encoding ?
+	    surf::KEY_WEIGHTS_G : surf::KEY_WEIGHTS;
+    const auto key_df = offset_encoding ?
+	    surf::KEY_SADADF_G : surf::KEY_SADADF;
 
     cout<<"...CSA"<<endl; // CSA to get the lex. range
     if ( !cache_file_exists<t_csa>(surf::KEY_CSA, cc) )
@@ -321,17 +388,19 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         store_to_cache(wtd, surf::KEY_WTD, cc, true);
     }
     cout<<"...DF"<<endl; // 
-    if (!cache_file_exists<t_df>(surf::KEY_SADADF, cc))
+    if (!cache_file_exists<t_df>(key_df, cc))
     {
         t_df df;
         construct(df, "", cc, 0);
-        store_to_cache(df, surf::KEY_SADADF, cc, true);
+        store_to_cache(df, key_df, cc, true);
         bit_vector h;
         load_from_cache(h, surf::KEY_H, cc);
         t_h hrrr = h;
         store_to_cache(hrrr, surf::KEY_H, cc, true);
-        t_h_select h_select(&hrrr);
-        store_to_cache(h_select, surf::KEY_H_SELECT, cc, true);
+        t_h_select_0 h_select_0(&hrrr);
+        t_h_select_1 h_select_1(&hrrr);
+        store_to_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        store_to_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
     }
     cout<<"...DOC_BORDER"<<endl;
     if ( !cache_file_exists<t_border>(surf::KEY_DOCBORDER,cc) or
@@ -358,20 +427,19 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
     }
 // P corresponds to up-pointers
     cout<<"...P"<<endl;
-    if (!cache_file_exists(surf::KEY_P, cc))
+    if (!cache_file_exists(key_p, cc))
     {
         uint64_t max_depth = 0;
         load_from_cache(max_depth, surf::KEY_MAXCSTDEPTH, cc);
 
         int_vector<> dup;
-        load_from_cache(dup, surf::KEY_DUP, cc);
+        load_from_cache(dup, key_dup, cc);
         cout<<"dup.size()="<<dup.size()<<endl;
         if ( dup.size() < 20 ){
             cout << dup << endl;
         }
-	cout << "plain dup encoding:\t\t" << 8*size_in_bytes(dup) / (double)dup.size() << endl;
 
-        std::string P_file = cache_file_name(surf::KEY_P, cc);
+        std::string P_file = cache_file_name(key_p, cc);
         
         int_vector_buffer<> P_buf(P_file, std::ios::out, 1<<20, sdsl::bits::hi(max_depth)+1);
 
@@ -380,12 +448,12 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         
         t_h hrrr;
         load_from_cache(hrrr, surf::KEY_H, cc, true);
-        t_h_select h_select;
-        load_from_cache(h_select, surf::KEY_H_SELECT, cc, true);
-        h_select.set_vector(&hrrr);
+        t_h_select_1 h_select_1;
+        load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        h_select_1.set_vector(&hrrr);
         cst_type cst;
         load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
-        map_node_to_dup_type<cst_type, t_h_select> map_node_to_dup(&h_select, &cst);
+        map_node_to_dup_type<cst_type, t_h_select_1> map_node_to_dup(&h_select_1, &cst);
 
         uint64_t doc_cnt = 1;
         load_from_cache(doc_cnt, KEY_DOCCNT, cc);
@@ -417,7 +485,77 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
             }
         }
         P_buf.close();
+    }   
+    if (offset_encoding) {
+	    cout <<"...DOC_OFFSET"<<endl;
+	    if (!cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET,cc))
+	    {
+		    int_vector<> darray,dup;
+		    load_from_cache(darray, surf::KEY_DARRAY, cc);
+		    load_from_cache(dup, surf::KEY_DUP_G, cc);
+		    t_h hrrr;
+		    load_from_cache(hrrr, surf::KEY_H, cc, true);
+		    t_h_select_1 h_select_1;
+		    load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+		    h_select_1.set_vector(&hrrr);
+
+		    // Iterate through all nodes.
+		    uint64_t start = 0;
+		    uint64_t end;
+		    // For each dup value offset o such that darray[nodeIndex+o+1] = dup.
+		    vector<uint64_t> sa_offset; 
+		    uint64_t sd_n = 1;
+		    for (uint64_t i = 1; i <= darray.size(); ++i) {
+			    end = h_select_1(i)+1-i;
+			    if (start < end) { // Dup lens
+				    vector<uint64_t> dup_set(dup.begin() + start, dup.begin() + end);	
+				    uint64_t sa_pos = i;
+				    uint64_t j = 0;
+				    while (j < dup_set.size()) {
+					    if (dup_set[j] == darray[sa_pos]) {
+						    // Store offset.
+						    sa_offset.push_back(sa_pos-i);
+						    ++j;
+					    }	
+					    if (sa_pos >= darray.size()) {
+						    cout << "ERROR: sa_pos is out of bounds." << endl;
+						    return;
+					    }
+					    ++sa_pos;
+				    }
+				    // sd_n computation.
+				    // encode first value + 1.
+				    sd_n += sa_offset[start] + 1; // +1 because zero deltas can't be encoded.
+				    for (size_t j = start+1; j < end; ++j)
+					    sd_n += sa_offset[j] - sa_offset[j-1]; // encode deltas.
+			    }
+			    start = end;
+		    }
+		    // Some stats.
+		    uint64_t sd_m = sa_offset.size();
+		    sdsl::bit_vector plain_bv(sd_n);
+		    start = 0;
+		    uint64_t cur_pos = 0;
+		    for (uint64_t i = 1; i < darray.size(); ++i) {
+			    end = h_select_1(i)+1-i;
+			    if (start < end) { // Dup lens
+				    cur_pos += sa_offset[start] + 1;
+				    plain_bv[cur_pos] = 1;
+				    for (size_t j = start+1; j < end; ++j) {
+					    cur_pos += sa_offset[j] - sa_offset[j-1];
+					    plain_bv[cur_pos] = 1;
+				    }
+			    }
+			    start = end;
+		    }
+		    doc_offset_type doc_offset(plain_bv);
+		    // Build select.
+		    typename doc_offset_type::select_1_type doc_offset_select(&doc_offset);
+		    store_to_cache(doc_offset, surf::KEY_DOC_OFFSET, cc, true); 
+		    store_to_cache(doc_offset_select, surf::KEY_DOC_OFFSET_SELECT, cc, true); 
+	    }
     }
+
     cout<<"...RMQ_C"<<endl;
     if (!cache_file_exists<t_rmq>(surf::KEY_RMQC,cc))
     {
@@ -427,10 +565,10 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         store_to_cache(rmq_c, surf::KEY_RMQC, cc, true); 
     }
     cout<<"...W_AND_P"<<endl;
-    if (!cache_file_exists<t_k2treap>(surf::KEY_W_AND_P, cc))
+    if (!cache_file_exists<t_k2treap>(key_w_and_p, cc))
     {
-        int_vector_buffer<> P_buf(cache_file_name(surf::KEY_P, cc));
-        std::string W_and_P_file = cache_file_name(surf::KEY_W_AND_P, cc);
+        int_vector_buffer<> P_buf(cache_file_name(key_p, cc));
+        std::string W_and_P_file = cache_file_name(key_w_and_p, cc);
         cout<<"P_buf.size()=" << P_buf.size() << endl;
         {
             int_vector<> id_v(P_buf.size(), 0,bits::hi(P_buf.size())+1);
@@ -439,18 +577,18 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         }
         {
             int_vector<> P;
-            load_from_cache(P, surf::KEY_P, cc);
+            load_from_cache(P, key_p, cc);
             store_to_file(P, W_and_P_file+".y");
         }
         {
             int_vector<> W;
-            load_from_cache(W, surf::KEY_WEIGHTS, cc);
+            load_from_cache(W, key_weights, cc);
             store_to_file(W, W_and_P_file+".w");
         }
         cout<<"build k2treap"<<endl;
         t_k2treap k2treap;
-        construct(k2treap, cache_file_name(surf::KEY_W_AND_P,cc));
-        store_to_cache(k2treap, surf::KEY_W_AND_P, cc, true);
+        construct(k2treap, cache_file_name(key_w_and_p, cc));
+        store_to_cache(k2treap, key_w_and_p, cc, true);
         sdsl::remove(W_and_P_file+".x");
         sdsl::remove(W_and_P_file+".y");
         sdsl::remove(W_and_P_file+".w");

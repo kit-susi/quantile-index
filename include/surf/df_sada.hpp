@@ -48,7 +48,7 @@ struct df_sada_trait<sdsl::byte_alphabet_tag>{
 template<typename t_bv=sdsl::bit_vector,
          typename t_sel=typename t_bv::select_1_type,
          typename t_alphabet=sdsl::int_alphabet_tag,
-	 bool t_greedy_order=false>
+	 bool t_greedy_order=true>
 class df_sada{
     public:
         typedef typename sdsl::int_vector<>::size_type size_type;

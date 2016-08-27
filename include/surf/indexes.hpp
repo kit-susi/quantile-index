@@ -3,6 +3,5 @@
 
 #include "idx_d.hpp"
 #include "idx_nn.hpp"
-#include "idx_o.hpp"
 
 #endif

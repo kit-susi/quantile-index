@@ -345,7 +345,7 @@ template<typename t_csa,
 	 typename t_doc_offset
          >
 void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_select,t_h,
-		t_h_select_1, t_h_select_1, offset_encoding, t_doc_offset>& idx,
+		t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>& idx,
                const std::string&,
                sdsl::cache_config& cc, uint8_t num_bytes)
 {    
@@ -531,8 +531,6 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
 			    }
 			    start = end;
 		    }
-		    // Some stats.
-		    uint64_t sd_m = sa_offset.size();
 		    sdsl::bit_vector plain_bv(sd_n);
 		    start = 0;
 		    uint64_t cur_pos = 0;

@@ -1,3 +1,0 @@
-# collection_file = ../collections/ENWIKISML
-# index_name = IDX_NN
-# pattern_file = pattern/ENWIKISML.5.byte.txt

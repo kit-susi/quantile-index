@@ -198,7 +198,7 @@ int main(int argc, char* argv[])
 		++q_cnt;
 		size_t x = 0;
 		auto res_it = idx.topk(query.begin(), query.end(),args.multi_occ,args.match_only);
-		while ( x < args.k and res_it ){
+		while ( x < args.k and !res_it.done()){
 		    ++x;
 		    sum_fdt += (*res_it).second;
 		    if ( args.verbose ) {

@@ -181,8 +181,8 @@ public:
                 return m_doc_val; 
             }
 
-            operator t_mfptr() const{
-                return (t_mfptr)(m_valid);
+            bool done() const {
+                return !m_valid;
             }
     };
 

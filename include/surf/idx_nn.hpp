@@ -247,6 +247,7 @@ public:
 	if (offset_encoding) {
         	load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET, cc, true);
         	load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT, cc, true);
+		m_doc_offset_select.set_vector(&m_doc_offset);
 	} else {
         	load_from_cache(m_doc, surf::KEY_DUP, cc);
 	}
@@ -488,8 +489,7 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
     }   
     if (offset_encoding) {
 	    cout <<"...DOC_OFFSET"<<endl;
-	    if (!cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET,cc))
-	    {
+	    if (!cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET,cc)) {
 		    int_vector<> darray,dup;
 		    load_from_cache(darray, surf::KEY_DARRAY, cc);
 		    load_from_cache(dup, surf::KEY_DUP_G, cc);

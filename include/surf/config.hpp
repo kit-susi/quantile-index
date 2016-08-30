@@ -60,6 +60,9 @@ const std::string KEY_WEIGHTS = "weights";
 const std::string KEY_WEIGHTS_G = "weights_g";
 const std::string KEY_W_AND_P = "W_and_P";
 const std::string KEY_W_AND_P_G = "W_and_P_g";
+const std::string KEY_INPUT = "input";
+const std::string KEY_DOC_SPLITTERS = "doc_splitters";
+const std::string KEY_DOC_SPLITTERS_RANK = "doc_splitters_rank";
 
 std::vector<std::string> storage_keys = {KEY_DOCCNT,
 										 KEY_DARRAY,

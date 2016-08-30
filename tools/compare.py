@@ -13,17 +13,24 @@ def get_ngram(text, n):
 
 if __name__ == '__main__':
   p = argparse.ArgumentParser()
-  p.add_argument('targets', metavar='CONFIG', nargs='+', help='Config to test')
+  p.add_argument('targets', metavar='CONFIG', nargs='+',
+      help='Configs to test')
+  p.add_argument('--clear', default=False, action='store_true',
+      help='Delete indexes before testing')
   p.add_argument('-c', metavar='DIRECTORY', help='Input collection')
   p.add_argument('-n', default=3, type=int, metavar='N',
       help='ngram size for queries')
-  p.add_argument('-s', default=10, type=int, metavar='N',
+  p.add_argument('-s', default=20, type=int, metavar='N',
       help='Number of sample queries')
 
   args = p.parse_args()
   with open(args.c + '/text_SURF.sdsl') as f:
     # strip 8-byte header
     text = f.read()[8:]
+
+  if args.clear:
+    print 'Deleting old indexes'
+    subprocess.check_call(['rm', '-r', args.c + '/index'])
 
   for config in args.targets:
     print 'Building index for config %s' % config

@@ -12,30 +12,30 @@
 #include <queue>
 #include <set>
 
-namespace surf{
+namespace surf {
 
 using range_type = sdsl::range_type;
 
 
 template<typename t_select>
-struct map_to_dup_type{
+struct map_to_dup_type {
     const t_select* m_sel;
 
-    map_to_dup_type(const t_select* select=nullptr) :
+    map_to_dup_type(const t_select* select = nullptr) :
         m_sel(select)
     {}
 
     range_type
-    operator()(size_t sp, size_t ep)const{
+    operator()(size_t sp, size_t ep)const {
         uint64_t y = (*m_sel)(ep);
-        if ( y == 0 )
-            return {0, (int_vector<>::size_type)-1};
+        if (y == 0)
+            return {0, (int_vector<>::size_type) - 1};
         uint64_t ep_ = (y + 1) - ep - 1; // # of 0 left to y - 1
         uint64_t sp_ = 0;          // # of 0 left to x
         if (0 == sp) {
         } else {
             uint64_t x = (*m_sel)(sp);
-            sp_ = (x+1) - sp;
+            sp_ = (x + 1) - sp;
         }
         return {sp_, ep_};
     }
@@ -59,7 +59,7 @@ template<typename t_csa,
          bool     offset_encoding = true,
          typename t_doc_offset = sdsl::hyb_sd_vector<>
          >
-class idx_nn{
+class idx_nn {
 public:
     using size_type = sdsl::int_vector<>::size_type;
     typedef t_csa                                      csa_type;
@@ -82,22 +82,22 @@ public:
     border_type        m_border;
     border_rank_type   m_border_rank;
     border_select_type m_border_select;
-    h_type            m_h;
-    h_select_0_type        m_h_select_0;
-    h_select_1_type        m_h_select_1;
-    doc_offset_type     m_doc_offset; // offset representation of documents in node list
+    h_type             m_h;
+    h_select_0_type    m_h_select_0;
+    h_select_1_type    m_h_select_1;
+    doc_offset_type    m_doc_offset; // offset representation of documents in node list
     doc_offset_select_type m_doc_offset_select;
     int_vector<>       m_doc; // documents in node lists
     rmqc_type          m_rmqc;
     k2treap_type       m_k2treap;
-    map_to_h_type     m_map_to_h;
+    map_to_h_type      m_map_to_h;
 
 public:
 
-    class top_k_iterator{
+    class top_k_iterator {
     public:
         typedef std::pair<uint64_t, double> t_doc_val;
-        typedef std::stack<std::array<uint64_t,2>> t_stack_array;
+        typedef std::stack<std::array<uint64_t, 2>> t_stack_array;
     private:
         const idx_nn*      m_idx;
         uint64_t           m_sp;  // start point of lex interval
@@ -119,13 +119,13 @@ public:
         template<typename t_pat_iter>
         top_k_iterator(const idx_nn* idx, t_pat_iter begin, t_pat_iter end, bool multi_occ, bool only_match) :
             m_idx(idx), m_multi_occ(multi_occ) {
-            m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size()-1, begin, end, m_sp, m_ep) > 0;
+            m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size() - 1, begin, end, m_sp, m_ep) > 0;
             m_valid &= !only_match;
-            if ( m_valid ){
+            if (m_valid) {
                 auto h_range = m_idx->m_map_to_h(m_sp, m_ep);
-                if ( !empty(h_range) ) {
-                    uint64_t depth = end-begin;
-                    m_k2_iter = top_k(m_idx->m_k2treap, {std::get<0>(h_range) ,0}, {std::get<1>(h_range), depth-1});
+                if (!empty(h_range)) {
+                    uint64_t depth = end - begin;
+                    m_k2_iter = top_k(m_idx->m_k2treap, {std::get<0>(h_range) , 0}, {std::get<1>(h_range), depth - 1});
                 }
                 m_states.push({m_sp, m_ep});
                 ++(*this);
@@ -134,36 +134,36 @@ public:
 
         auto extract_snippet(const size_type k) const {
             size_type s = m_doc_val.first == 0 ?
-                0 : (m_idx->m_border_select(m_doc_val.first)+1);
+                          0 : (m_idx->m_border_select(m_doc_val.first) + 1);
             size_type e = std::min(s + k,
-                    m_idx->m_border_select(m_doc_val.first+1)-1);
+                                   m_idx->m_border_select(m_doc_val.first + 1) - 1);
             return extract(m_idx->m_csa, s, e);
         }
 
-        top_k_iterator& operator++(){
-            if ( m_valid ){
+        top_k_iterator& operator++() {
+            if (m_valid) {
                 m_valid = false;
-                if ( m_k2_iter ) { // multiple occurrence result exists
+                if (m_k2_iter) {   // multiple occurrence result exists
                     auto xy_w       = *m_k2_iter;
                     uint64_t doc_id = offset_encoding ?
-            m_idx->get_doc(real(xy_w.first)) : m_idx->m_doc[real(xy_w.first)];
-                    m_doc_val = t_doc_val(doc_id, xy_w.second+1);
+                                      m_idx->get_doc(real(xy_w.first)) : m_idx->m_doc[real(xy_w.first)];
+                    m_doc_val = t_doc_val(doc_id, xy_w.second + 1);
                     m_reported.insert(doc_id);
                     m_valid = true;
                     ++m_k2_iter;
                 } else { // search for singleton results
-                    while ( !m_multi_occ and !m_states.empty() ) {
+                    while (!m_multi_occ and !m_states.empty()) {
                         auto state = m_states.top();
                         m_states.pop();
                         uint64_t min_idx = m_idx->m_rmqc(state[0], state[1]);
                         uint64_t doc_id  = m_idx->m_border_rank(m_idx->m_csa[min_idx]);
-                        if ( m_singletons.find(doc_id) == m_singletons.end() ){
+                        if (m_singletons.find(doc_id) == m_singletons.end()) {
                             m_singletons.insert(doc_id);
-                            if ( min_idx + 1 <= state[1] )
-                                m_states.push({min_idx+1, state[1]});
-                            if ( state[0] + 1 <= min_idx )
-                                m_states.push({state[0], min_idx-1});
-                            if ( m_reported.find(doc_id) == m_reported.end() ){
+                            if (min_idx + 1 <= state[1])
+                                m_states.push({min_idx + 1, state[1]});
+                            if (state[0] + 1 <= min_idx)
+                                m_states.push({state[0], min_idx - 1});
+                            if (m_reported.find(doc_id) == m_reported.end()) {
                                 m_doc_val = t_doc_val(doc_id, 1);
                                 m_reported.insert(doc_id);
                                 m_valid = true;
@@ -176,7 +176,7 @@ public:
             return *this;
         }
 
-        t_doc_val operator*() const{
+        t_doc_val operator*() const {
             return m_doc_val;
         }
 
@@ -186,18 +186,18 @@ public:
     };
 
     template<typename t_pat_iter>
-    top_k_iterator topk(t_pat_iter begin, t_pat_iter end, bool multi_occ=false,
-                        bool only_match=false) const{
+    top_k_iterator topk(t_pat_iter begin, t_pat_iter end, bool multi_occ = false,
+                        bool only_match = false) const {
         return top_k_iterator(this, begin, end, multi_occ, only_match);
     }
 
-    result search(const std::vector<query_token>& qry,size_t k,
-                  bool ranked_and = false,bool profile = false) const {
+    result search(const std::vector<query_token>& qry, size_t k,
+                  bool ranked_and = false, bool profile = false) const {
         result res;
-        if ( qry.size() > 0 ){
+        if (qry.size() > 0) {
             auto res_iter = topk(qry[0].token_ids.begin(), qry[0].token_ids.end());
             size_t i = 0;
-            while ( i < k and res_iter ){
+            while (i < k and res_iter) {
                 ++i;
                 auto docid_weight = *res_iter;
                 res.list.emplace_back(docid_weight.first, docid_weight.second);
@@ -210,13 +210,13 @@ public:
     // Decode m_doc value at postion index by using offset encoding.
     uint64_t get_doc(const uint64_t index) const {
         // All sa offsets are relative to sa_base_pos (rightmost leaf of left subtree).
-        uint64_t sa_base_pos = m_h_select_0(index+1) - index + 1;
+        uint64_t sa_base_pos = m_h_select_0(index + 1) - index + 1;
         uint64_t base_index = // Index of first dup entry in the node.
-                m_h_select_1(sa_base_pos-1) + 2 - sa_base_pos;
+            m_h_select_1(sa_base_pos - 1) + 2 - sa_base_pos;
         uint64_t sa_delta = // Extract delta from base index to index.
             (base_index == 0) ?
-                m_doc_offset_select(index+1) :
-                m_doc_offset_select(index+1) - m_doc_offset_select(base_index);
+            m_doc_offset_select(index + 1) :
+            m_doc_offset_select(index + 1) - m_doc_offset_select(base_index);
         --sa_delta; // Because zero deltas can't be encoded otherwise.
         uint64_t sa_pos = sa_base_pos + sa_delta;
         uint64_t text_pos = m_csa[sa_pos];
@@ -224,17 +224,17 @@ public:
     }
 
 
-    auto doc(uint64_t doc_id) -> decltype(extract(m_csa,0,0)) {
-        size_type doc_begin=0;
-        if ( doc_id ) {
-            doc_begin = m_border_select(doc_id)+1;
+    auto doc(uint64_t doc_id) -> decltype(extract(m_csa, 0, 0)) {
+        size_type doc_begin = 0;
+        if (doc_id) {
+            doc_begin = m_border_select(doc_id) + 1;
         }
-        size_type doc_end=m_border_select(doc_id+1)-1;
+        size_type doc_end = m_border_select(doc_id + 1) - 1;
         auto res = extract(m_csa, doc_begin, doc_end);
         return res;
     }
 
-    uint64_t doc_cnt() const{
+    uint64_t doc_cnt() const {
         return m_border_rank(m_csa.size());
     }
 
@@ -243,7 +243,7 @@ public:
     }
 
 
-    void load(sdsl::cache_config& cc){
+    void load(sdsl::cache_config& cc) {
         load_from_cache(m_csa, surf::KEY_CSA, cc, true);
         if (offset_encoding) {
             load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET, cc, true);
@@ -268,18 +268,18 @@ public:
             load_from_cache(m_k2treap, surf::KEY_W_AND_P_G, cc, true);
         else
             load_from_cache(m_k2treap, surf::KEY_W_AND_P, cc, true);
-        }
+    }
 
-    size_type serialize(std::ostream& out, structure_tree_node* v=nullptr,
-                        std::string name="")const {
+    size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
+                        std::string name = "")const {
         structure_tree_node* child = structure_tree::add_child(v, name,
-                util::class_name(*this));
+                                     util::class_name(*this));
         size_type written_bytes = 0;
         written_bytes += m_csa.serialize(out, child, "CSA");
         if (offset_encoding) {
             written_bytes += m_doc_offset.serialize(out, child, "DOC_OFFSET");
             written_bytes += m_doc_offset_select.serialize(out, child,
-                    "DOC_OFFSET_SELECT");
+                             "DOC_OFFSET_SELECT");
         } else {
             written_bytes += m_doc.serialize(out, child, "DOC");
         }
@@ -294,20 +294,20 @@ public:
         return written_bytes;
     }
 
-    void mem_info()const{
-    std::cout<<"Dupsize "<<m_doc.size()<<std::endl;
+    void mem_info()const {
+        std::cout << "Dupsize " << m_doc.size() << std::endl;
         std::cout << sdsl::size_in_bytes(m_csa) +
-        sdsl::size_in_bytes(m_border) +
-        sdsl::size_in_bytes(m_border_rank)<< ";"; // CSA
+                  sdsl::size_in_bytes(m_border) +
+                  sdsl::size_in_bytes(m_border_rank) << ";"; // CSA
         if (offset_encoding) {
             std::cout << sdsl::size_in_bytes(m_doc_offset)
-            + sdsl::size_in_bytes(m_doc_offset_select)<< ";"; // DOC
+                      + sdsl::size_in_bytes(m_doc_offset_select) << ";"; // DOC
         } else {
             std::cout << sdsl::size_in_bytes(m_doc) << ";"; // DOC
         }
         std::cout << sdsl::size_in_bytes(m_h)
-           + sdsl::size_in_bytes(m_h_select_0)
-           + sdsl::size_in_bytes(m_h_select_1)<< ";";  // H
+                  + sdsl::size_in_bytes(m_h_select_0)
+                  + sdsl::size_in_bytes(m_h_select_1) << ";"; // H
         std::cout << sdsl::size_in_bytes(m_rmqc) << ";";  // RMQ
         std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
     }
@@ -315,7 +315,7 @@ public:
 
 template<typename t_cst,
          typename t_select>
-struct map_node_to_dup_type{
+struct map_node_to_dup_type {
     typedef typename t_cst::node_type t_node;
     const map_to_dup_type<t_select> m_map;
     const t_cst* m_cst;
@@ -325,15 +325,15 @@ struct map_node_to_dup_type{
     { }
 
     range_type
-    operator()(const t_node& v)const{
+    operator()(const t_node& v)const {
         auto left    = 1;
         auto left_rb = m_cst->rb(m_cst->select_child(v, left));
-        return m_map(left_rb, left_rb+1);
+        return m_map(left_rb, left_rb + 1);
     }
     // id \in [1..n-1]
-    uint64_t id(const t_node& v)const{
+    uint64_t id(const t_node& v)const {
         auto left    = 1;
-        return m_cst->rb(m_cst->select_child(v, left))+1;
+        return m_cst->rb(m_cst->select_child(v, left)) + 1;
     }
 };
 
@@ -349,7 +349,7 @@ template<typename t_csa,
          bool       offset_encoding,
          typename t_doc_offset
          >
-void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_select,
+void construct(idx_nn<t_csa, t_k2treap, t_rmq, t_border, t_border_rank, t_border_select,
                t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>& idx,
                const std::string&,
                sdsl::cache_config& cc, uint8_t num_bytes) {
@@ -358,32 +358,32 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
     using t_df = DF_TYPE;
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,
-      t_border_select,t_h,t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
+    using idx_type = idx_nn<t_csa, t_k2treap, t_rmq, t_border, t_border_rank,
+          t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
     const auto key_w_and_p = offset_encoding ?
-        surf::KEY_W_AND_P_G : surf::KEY_W_AND_P;
+                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P;
     const auto key_p = offset_encoding ?
-        surf::KEY_P_G : surf::KEY_P;
+                       surf::KEY_P_G : surf::KEY_P;
     const auto key_dup = offset_encoding ?
-        surf::KEY_DUP_G : surf::KEY_DUP;
+                         surf::KEY_DUP_G : surf::KEY_DUP;
     const auto key_weights = offset_encoding ?
-        surf::KEY_WEIGHTS_G : surf::KEY_WEIGHTS;
+                             surf::KEY_WEIGHTS_G : surf::KEY_WEIGHTS;
     const auto key_df = offset_encoding ?
-        surf::KEY_SADADF_G : surf::KEY_SADADF;
+                        surf::KEY_SADADF_G : surf::KEY_SADADF;
 
-    cout<<"...CSA"<<endl; // CSA to get the lex. range
-    if ( !cache_file_exists<t_csa>(surf::KEY_CSA, cc) )
+    cout << "...CSA" << endl; // CSA to get the lex. range
+    if (!cache_file_exists<t_csa>(surf::KEY_CSA, cc))
     {
         t_csa csa;
         construct(csa, "", cc, 0);
         store_to_cache(csa, surf::KEY_CSA, cc, true);
     }
-    cout<<"...WTD"<<endl; // Document array and wavelet tree of it
-    if (!cache_file_exists<t_wtd>(surf::KEY_WTD, cc) ){
+    cout << "...WTD" << endl; // Document array and wavelet tree of it
+    if (!cache_file_exists<t_wtd>(surf::KEY_WTD, cc)) {
         construct_darray<t_csa::alphabet_type::int_width>(cc, false);
         t_wtd wtd;
         construct(wtd, cache_file_name(surf::KEY_DARRAY, cc), cc);
@@ -391,7 +391,7 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         cout << "wtd.sigma = " << wtd.sigma << endl;
         store_to_cache(wtd, surf::KEY_WTD, cc, true);
     }
-    cout<<"...DF"<<endl; //
+    cout << "...DF" << endl; //
     if (!cache_file_exists<t_df>(key_df, cc))
     {
         t_df df;
@@ -406,13 +406,13 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         store_to_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
         store_to_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
     }
-    cout<<"...DOC_BORDER"<<endl;
-    if ( !cache_file_exists<t_border>(surf::KEY_DOCBORDER,cc) or
-         !cache_file_exists<t_border_rank>(surf::KEY_DOCBORDER_RANK,cc) or
-         !cache_file_exists<t_border_select>(surf::KEY_DOCBORDER_SELECT,cc) )
+    cout << "...DOC_BORDER" << endl;
+    if (!cache_file_exists<t_border>(surf::KEY_DOCBORDER, cc) or
+            !cache_file_exists<t_border_rank>(surf::KEY_DOCBORDER_RANK, cc) or
+            !cache_file_exists<t_border_select>(surf::KEY_DOCBORDER_SELECT, cc))
     {
         bit_vector doc_border;
-        load_from_cache(doc_border, surf::KEY_DOCBORDER,cc);
+        load_from_cache(doc_border, surf::KEY_DOCBORDER, cc);
         t_border sd_doc_border(doc_border);
         store_to_cache(sd_doc_border, surf::KEY_DOCBORDER, cc, true);
         t_border_rank doc_border_rank(&sd_doc_border);
@@ -420,8 +420,8 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         t_border_select doc_border_select(&sd_doc_border);
         store_to_cache(doc_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
     }
-    cout<<"...WTD"<<endl;
-    if (!cache_file_exists<t_wtd>(surf::KEY_WTD, cc) ){
+    cout << "...WTD" << endl;
+    if (!cache_file_exists<t_wtd>(surf::KEY_WTD, cc)) {
         construct_darray<t_csa::alphabet_type::int_width>(cc, false);
         t_wtd wtd;
         construct(wtd, cache_file_name(surf::KEY_DARRAY, cc), cc);
@@ -430,7 +430,7 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         store_to_cache(wtd, surf::KEY_WTD, cc, true);
     }
 // P corresponds to up-pointers
-    cout<<"...P"<<endl;
+    cout << "...P" << endl;
     if (!cache_file_exists(key_p, cc))
     {
         uint64_t max_depth = 0;
@@ -438,14 +438,14 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
 
         int_vector<> dup;
         load_from_cache(dup, key_dup, cc);
-        cout<<"dup.size()="<<dup.size()<<endl;
-        if ( dup.size() < 20 ){
+        cout << "dup.size()=" << dup.size() << endl;
+        if (dup.size() < 20) {
             cout << dup << endl;
         }
 
         std::string P_file = cache_file_name(key_p, cc);
 
-        int_vector_buffer<> P_buf(P_file, std::ios::out, 1<<20, sdsl::bits::hi(max_depth)+1);
+        int_vector_buffer<> P_buf(P_file, std::ios::out, 1 << 20, sdsl::bits::hi(max_depth) + 1);
 
         t_wtd wtd;
         load_from_cache(wtd, surf::KEY_WTD, cc, true);
@@ -461,26 +461,26 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
 
         uint64_t doc_cnt = 1;
         load_from_cache(doc_cnt, KEY_DOCCNT, cc);
-        typedef stack<uint32_t,vector<uint32_t>> t_stack;
+        typedef stack<uint32_t, vector<uint32_t>> t_stack;
         //  HELPER to build the pointer structure
-        vector<t_stack> depths(doc_cnt, t_stack(vector<uint32_t>(1,0)));// doc_cnt stack for last depth
-        uint64_t depth=0;
+        vector<t_stack> depths(doc_cnt, t_stack(vector<uint32_t>(1, 0))); // doc_cnt stack for last depth
+        uint64_t depth = 0;
         // DFS traversal of CST
-        for (auto it=cst.begin(); it!=cst.end(); ++it) {
+        for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
-            if ( !cst.is_leaf(v) ) {
+            if (!cst.is_leaf(v)) {
                 if (it.visit() == 1) {  // node visited the first time
                     depth = cst.depth(v);
                     range_type r = map_node_to_dup(v);
-                    if ( !empty(r) ){
-                        for(size_t i=get<0>(r); i<=get<1>(r); ++i){
+                    if (!empty(r)) {
+                        for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
                             depths[dup[i]].push(depth);
                         }
                     }
                 } else { // node visited the second time
                     range_type r = map_node_to_dup(v);
-                    if ( !empty(r) ){
-                         for(size_t i=get<0>(r); i<=get<1>(r); ++i){
+                    if (!empty(r)) {
+                        for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
                             depths[dup[i]].pop();
                             P_buf[i] = depths[dup[i]].top();
                         }
@@ -491,9 +491,9 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         P_buf.close();
     }
     if (offset_encoding) {
-        cout <<"...DOC_OFFSET"<<endl;
-        if (!cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET,cc)) {
-            int_vector<> darray,dup;
+        cout << "...DOC_OFFSET" << endl;
+        if (!cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET, cc)) {
+            int_vector<> darray, dup;
             load_from_cache(darray, surf::KEY_DARRAY, cc);
             load_from_cache(dup, surf::KEY_DUP_G, cc);
             t_h hrrr;
@@ -509,7 +509,7 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
             vector<uint64_t> sa_offset;
             uint64_t sd_n = 1;
             for (uint64_t i = 1; i <= darray.size(); ++i) {
-                end = h_select_1(i)+1-i;
+                end = h_select_1(i) + 1 - i;
                 if (start < end) { // Dup lens
                     vector<uint64_t> dup_set(dup.begin() + start, dup.begin() + end);
                     uint64_t sa_pos = i;
@@ -517,7 +517,7 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
                     while (j < dup_set.size()) {
                         if (dup_set[j] == darray[sa_pos]) {
                             // Store offset.
-                            sa_offset.push_back(sa_pos-i);
+                            sa_offset.push_back(sa_pos - i);
                             ++j;
                         }
                         if (sa_pos >= darray.size()) {
@@ -529,8 +529,8 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
                     // sd_n computation.
                     // encode first value + 1.
                     sd_n += sa_offset[start] + 1; // +1 because zero deltas can't be encoded.
-                    for (size_t j = start+1; j < end; ++j)
-                        sd_n += sa_offset[j] - sa_offset[j-1]; // encode deltas.
+                    for (size_t j = start + 1; j < end; ++j)
+                        sd_n += sa_offset[j] - sa_offset[j - 1]; // encode deltas.
                 }
                 start = end;
             }
@@ -538,12 +538,12 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
             start = 0;
             uint64_t cur_pos = 0;
             for (uint64_t i = 1; i < darray.size(); ++i) {
-                end = h_select_1(i)+1-i;
+                end = h_select_1(i) + 1 - i;
                 if (start < end) { // Dup lens
                     cur_pos += sa_offset[start] + 1;
                     plain_bv[cur_pos] = 1;
-                    for (size_t j = start+1; j < end; ++j) {
-                        cur_pos += sa_offset[j] - sa_offset[j-1];
+                    for (size_t j = start + 1; j < end; ++j) {
+                        cur_pos += sa_offset[j] - sa_offset[j - 1];
                         plain_bv[cur_pos] = 1;
                     }
                 }
@@ -557,42 +557,42 @@ void construct(idx_nn<t_csa,t_k2treap,t_rmq,t_border,t_border_rank,t_border_sele
         }
     }
 
-    cout<<"...RMQ_C"<<endl;
-    if (!cache_file_exists<t_rmq>(surf::KEY_RMQC,cc))
+    cout << "...RMQ_C" << endl;
+    if (!cache_file_exists<t_rmq>(surf::KEY_RMQC, cc))
     {
         int_vector<> C;
         load_from_cache(C, surf::KEY_C, cc);
         t_rmq rmq_c(&C);
         store_to_cache(rmq_c, surf::KEY_RMQC, cc, true);
     }
-    cout<<"...W_AND_P"<<endl;
+    cout << "...W_AND_P" << endl;
     if (!cache_file_exists<t_k2treap>(key_w_and_p, cc))
     {
         int_vector_buffer<> P_buf(cache_file_name(key_p, cc));
         std::string W_and_P_file = cache_file_name(key_w_and_p, cc);
-        cout<<"P_buf.size()=" << P_buf.size() << endl;
+        cout << "P_buf.size()=" << P_buf.size() << endl;
         {
-            int_vector<> id_v(P_buf.size(), 0,bits::hi(P_buf.size())+1);
+            int_vector<> id_v(P_buf.size(), 0, bits::hi(P_buf.size()) + 1);
             util::set_to_id(id_v);
-            store_to_file(id_v, W_and_P_file+".x");
+            store_to_file(id_v, W_and_P_file + ".x");
         }
         {
             int_vector<> P;
             load_from_cache(P, key_p, cc);
-            store_to_file(P, W_and_P_file+".y");
+            store_to_file(P, W_and_P_file + ".y");
         }
         {
             int_vector<> W;
             load_from_cache(W, key_weights, cc);
-            store_to_file(W, W_and_P_file+".w");
+            store_to_file(W, W_and_P_file + ".w");
         }
-        cout<<"build k2treap"<<endl;
+        cout << "build k2treap" << endl;
         t_k2treap k2treap;
         construct(k2treap, cache_file_name(key_w_and_p, cc));
         store_to_cache(k2treap, key_w_and_p, cc, true);
-        sdsl::remove(W_and_P_file+".x");
-        sdsl::remove(W_and_P_file+".y");
-        sdsl::remove(W_and_P_file+".w");
+        sdsl::remove(W_and_P_file + ".x");
+        sdsl::remove(W_and_P_file + ".y");
+        sdsl::remove(W_and_P_file + ".w");
     }
 }
 

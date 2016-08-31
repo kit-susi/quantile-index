@@ -84,17 +84,17 @@ public:
 
         m_results = result_set(occs_by_doc.begin(), occs_by_doc.end());
         std::sort(m_results.begin(), m_results.end(), [&](
-                    const std::pair<uint64_t, double>& a,
-                    const std::pair<uint64_t, double>& b) {
+                      const std::pair<uint64_t, double>& a,
+        const std::pair<uint64_t, double>& b) {
             return std::make_pair(a.second, a.first) >
-                std::make_pair(b.second, b.first);
+                   std::make_pair(b.second, b.first);
         });
         return top_k_iterator(m_results);
     }
 
     void mem_info() const { }
 
-    uint64_t doc_cnt() const{
+    uint64_t doc_cnt() const {
         return m_doc_splitters_rank(m_csa.size());
     }
 
@@ -111,7 +111,7 @@ public:
         written_bytes += m_csa.serialize(out, child, "CSA");
         written_bytes += m_doc_splitters.serialize(out, child, "DOCBORDER");
         written_bytes += m_doc_splitters_rank.serialize(out, child,
-                "DOCBORDER_RANK");
+                         "DOCBORDER_RANK");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -147,7 +147,7 @@ void construct(idx_brute<t_csa>& idx, const std::string&, sdsl::cache_config& cc
     if (!cache_file_exists<sdsl::rrr_vector<>>(surf::KEY_DOCBORDER, cc)) {
         std::cout << "  building..." << std::endl;
         if (std::is_same<typename t_idx::alphabet_category,
-                         sdsl::int_alphabet_tag>::value) {
+                sdsl::int_alphabet_tag>::value) {
             sdsl::int_vector<> collection;
             load_from_cache(collection, sdsl::conf::KEY_TEXT_INT, cc, false);
             internal::build_doc_splitters(cc, collection);

@@ -197,7 +197,7 @@ public:
         if (qry.size() > 0) {
             auto res_iter = topk(qry[0].token_ids.begin(), qry[0].token_ids.end());
             size_t i = 0;
-            while (i < k and res_iter) {
+            while (i < k and !res_iter.done()) {
                 ++i;
                 auto docid_weight = *res_iter;
                 res.list.emplace_back(docid_weight.first, docid_weight.second);

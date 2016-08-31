@@ -7,11 +7,11 @@
 namespace surf {
 
 struct doc_score {
-	uint64_t doc_id;
-	double score;
+    uint64_t doc_id;
+    double score;
     bool operator>(const doc_score& rhs) const {
-    	if(score == rhs.score)
-    		return doc_id > rhs.doc_id;
+        if(score == rhs.score)
+            return doc_id > rhs.doc_id;
         return score > rhs.score;
     }
     doc_score() {};
@@ -29,10 +29,10 @@ struct result {
 struct query_token{
     std::vector<uint64_t> token_ids;
     std::vector<std::string> token_strs;
-	uint64_t f_qt;
-	query_token(const std::vector<uint64_t>& ids,
+    uint64_t f_qt;
+    query_token(const std::vector<uint64_t>& ids,
                 const std::vector<std::string>& strs,
-                uint64_t f) : token_ids(ids), token_strs(strs), f_qt(f) 
+                uint64_t f) : token_ids(ids), token_strs(strs), f_qt(f)
     {
     }
     bool operator<(const query_token& qt) const {

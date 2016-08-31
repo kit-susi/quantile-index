@@ -44,7 +44,7 @@ struct query_parser {
         return {id_mapping,reverse_id_mapping};
     }
 
-    static std::tuple<bool,uint64_t,std::vector<uint64_t>> 
+    static std::tuple<bool,uint64_t,std::vector<uint64_t>>
         map_to_ids(const std::unordered_map<std::string,uint64_t>& id_mapping,
                    std::string query_str,bool only_complete,bool integers)
     {
@@ -115,12 +115,12 @@ struct query_parser {
 
     template<typename alphabet_category=sdsl::int_alphabet_tag>
     static std::vector<query_t> parse_queries(const std::string& collection_dir,
-                                            const std::string& query_file,bool only_complete = false) 
+                                            const std::string& query_file,bool only_complete = false)
     {
         std::vector<query_t> queries;
 
         /* parse queries */
-        std::ifstream qfs(query_file); 
+        std::ifstream qfs(query_file);
         if(!qfs.is_open()) {
             std::cerr << "cannot load query file.";
             exit(EXIT_FAILURE);
@@ -163,7 +163,7 @@ struct query_parser {
                     }
                 }
                 queries.push_back(surf::query_t(qry_id,std::vector<query_token>(1,query_token(ids, strs, 1))));
-            } 
+            }
         } else {
             uint64_t qry_id = 0;
             while ( std::getline(qfs,query_str) ) {

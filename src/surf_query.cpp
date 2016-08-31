@@ -42,16 +42,16 @@ print_usage(char* program)
 
 
 int stick_this_thread_to_core(int core_id) {
-	int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
-	if (core_id < 0 || core_id >= num_cores)
-		return EINVAL;
+    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    if (core_id < 0 || core_id >= num_cores)
+        return EINVAL;
 
-	cpu_set_t cpuset;
-	CPU_ZERO(&cpuset);
-	CPU_SET(core_id, &cpuset);
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
 
-	pthread_t current_thread = pthread_self();    
-	return pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+    pthread_t current_thread = pthread_self();
+    return pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 }
 
 cmdargs_t
@@ -82,9 +82,9 @@ parse_args(int argc,char* const argv[])
             case 'o':
                 args.match_only = true;
                 break;
-	    case 's':
-		args.snippet_size = std::strtoul(optarg,NULL,10);
-		break;
+        case 's':
+        args.snippet_size = std::strtoul(optarg,NULL,10);
+        break;
             case '?':
             default:
                 print_usage(argv[0]);
@@ -108,7 +108,7 @@ char   buffer[buf_size];
 template<typename X>
 struct myline {
     static string parse(const string& str) {
-	    return str;
+        return str;
     }
 };
 
@@ -128,15 +128,15 @@ struct myline<sdsl::int_alphabet_tag> {
 
 template<typename T>
 uint64_t get_input_size(string dir) {
-	sdsl::int_vector<8> text;
-	sdsl::load_from_file(text, dir + "/text_SURF.sdsl");
-	return size_in_bytes(text);
+    sdsl::int_vector<8> text;
+    sdsl::load_from_file(text, dir + "/text_SURF.sdsl");
+    return size_in_bytes(text);
 }
 template<>
 uint64_t get_input_size<sdsl::int_alphabet_tag>(string dir) {
-	sdsl::int_vector<> text;
-	sdsl::load_from_file(text, dir + "/text_int_SURF.sdsl");
-	return size_in_bytes(text);
+    sdsl::int_vector<> text;
+    sdsl::load_from_file(text, dir + "/text_int_SURF.sdsl");
+    return size_in_bytes(text);
 }
 
 int main(int argc, char* argv[])
@@ -169,9 +169,9 @@ int main(int argc, char* argv[])
     }
     vector<string> queries;
     { // Load all queries.
-	string str;
-	while (std::getline(in, str))
-		queries.push_back(str);
+    string str;
+    while (std::getline(in, str))
+        queries.push_back(str);
     }
 
     using timer = chrono::high_resolution_clock;
@@ -184,62 +184,63 @@ int main(int argc, char* argv[])
     size_t q_len = 0;
     size_t q_cnt = 0;
     for (int run = 0; run < 1; ++run) {
-	    sum = 0;
-	    sum_fdt = 0;
-	    tle = false;
-	    sum_chars_extracted = 0;
-    	    q_len = 0;
-    	    q_cnt = 0;
-	    start = timer::now(); // Reset timer.
-	    for(size_t i = 0; !tle && i < queries.size(); ++i) {
-		auto q_start = timer::now();
-		auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
-		q_len += query.size();
-		++q_cnt;
-		size_t x = 0;
-		auto res_it = idx.topk(query.begin(), query.end(),args.multi_occ,args.match_only);
-		while ( x < args.k and !res_it.done()){
-		    ++x;
-		    sum_fdt += (*res_it).second;
-		    if ( args.verbose ) {
-			cout<<q_cnt<<";"<<x<<";"<<(*res_it).first<< ";"<<(*res_it).second << endl;
-		    }
-		    if (args.snippet_size != 0) {
-			auto snippet = res_it.extract_snippet(args.snippet_size);
-			sum_chars_extracted += snippet.size();
-			if (args.verbose) {
-				for (const auto c : snippet)
-					cout << c; 
- 				cout << endl;
-			}
-		    }
-		    if ( x < args.k ) 
-			++res_it;
-		}
-		sum += x;
-		auto q_time = timer::now()-q_start;
-		// single query should not take more then 5 seconds
-		if (chrono::duration_cast<chrono::seconds>(q_time).count() > 5) {
-		    tle = true;
-		}
-	    }
-    	auto stop = timer::now();
-	timings.push_back(stop-start);
+        sum = 0;
+        sum_fdt = 0;
+        tle = false;
+        sum_chars_extracted = 0;
+        q_len = 0;
+        q_cnt = 0;
+        start = timer::now(); // Reset timer.
+        for(size_t i = 0; !tle && i < queries.size(); ++i) {
+            auto q_start = timer::now();
+            auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
+            q_len += query.size();
+            ++q_cnt;
+            size_t x = 0;
+            auto res_it = idx.topk(query.begin(), query.end(),args.multi_occ,args.match_only);
+            while ( x < args.k and !res_it.done()){
+                ++x;
+                sum_fdt += (*res_it).second;
+                if ( args.verbose ) {
+                cout<<q_cnt<<";"<<x<<";"<<(*res_it).first<< ";"<<(*res_it).second << endl;
+                }
+                if (args.snippet_size != 0) {
+                auto snippet = res_it.extract_snippet(args.snippet_size);
+                sum_chars_extracted += snippet.size();
+                if (args.verbose) {
+                    for (const auto c : snippet)
+                        cout << c;
+                    cout << endl;
+                }
+                }
+                if ( x < args.k )
+                ++res_it;
+            }
+            sum += x;
+            auto q_time = timer::now()-q_start;
+            // single query should not take more then 5 seconds
+            if (chrono::duration_cast<chrono::seconds>(q_time).count() > 5) {
+                tle = true;
+            }
+        }
+        auto stop = timer::now();
+        timings.push_back(stop-start);
     }
     if ( !args.verbose ){
         cout<<"# TLE = " << tle << endl;
         cout<<"# query_len = "<<q_len/q_cnt<<endl;
         cout<<"# queries = " <<q_cnt <<endl;
-	sort(timings.begin(), timings.end());
-        auto exec_time = chrono::duration_cast<chrono::microseconds>(timings[timings.size()/2]).count();
+        sort(timings.begin(), timings.end());
+        auto exec_time = chrono::duration_cast<chrono::microseconds>(
+                timings[timings.size()/2]).count();
         cout<<"# time_per_query = "<< exec_time/q_cnt <<endl;
         auto doc_time = sum == 0 ? 0.0 : ((double)exec_time)/(sum*q_cnt);
         cout<<"# time_per_doc = " << doc_time << endl;
         cout<<"# check_sum = "<<sum<<endl;
         cout<<"# check_sum_fdt = "<<sum_fdt<<endl;
         cout<<"# index_size =  "<<size_in_bytes(idx)<<endl;
-	cout<<"# input_size = "<<
-		get_input_size<idx_type::alphabet_category>(args.collection_dir)<<endl;
-	cout<<"# sum_chars_extracted = "<<sum_chars_extracted<<endl;
+    cout<<"# input_size = "<<
+        get_input_size<idx_type::alphabet_category>(args.collection_dir)<<endl;
+    cout<<"# sum_chars_extracted = "<<sum_chars_extracted<<endl;
     }
 }

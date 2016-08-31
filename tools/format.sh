@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# Call from shell: tools/format.sh /path/to/file.cpp /path/to/some/other/file.cpp
+# Call from vim for current buffer: :%!tools/format.sh
 astyle \
     -s4     `# 4 space indent` \
     -S      `# Indent case: inside switch` \

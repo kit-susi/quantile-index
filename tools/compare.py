@@ -32,7 +32,6 @@ def results_are_same(a, b, eps):
     scores2 = dict(b)
     # doc -> score association is the same for common docs
     for doc in set(scores1.keys()) & set(scores2.keys()):
-        count += 1
         if abs(scores1[doc] - scores2[doc]) > eps:
             return False
     return True

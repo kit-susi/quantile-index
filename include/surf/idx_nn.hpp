@@ -96,7 +96,6 @@ public:
 
     class top_k_iterator{
         public:
-            typedef void(*t_mfptr)();
             typedef std::pair<uint64_t, double> t_doc_val;
             typedef std::stack<std::array<uint64_t,2>> t_stack_array;
         private:

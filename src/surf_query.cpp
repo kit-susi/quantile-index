@@ -209,7 +209,8 @@ int main(int argc, char* argv[])
 			sum_chars_extracted += snippet.size();
 			if (args.verbose) {
 				for (const auto c : snippet)
-					cout << c; cout << endl;
+					cout << c; 
+ 				cout << endl;
 			}
 		    }
 		    if ( x < args.k ) 

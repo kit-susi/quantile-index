@@ -32,8 +32,8 @@ private:
 public:
     void load(sdsl::cache_config& cc) {
         load_from_cache(m_csa, surf::KEY_CSA, cc, true);
-        load_from_cache(m_doc_splitters, surf::KEY_DOC_SPLITTERS, cc, true);
-        load_from_cache(m_doc_splitters_rank, surf::KEY_DOC_SPLITTERS_RANK, cc, true);
+        load_from_cache(m_doc_splitters, surf::KEY_DOCBORDER, cc, true);
+        load_from_cache(m_doc_splitters_rank, surf::KEY_DOCBORDER_RANK, cc, true);
         m_doc_splitters_rank.set_vector(&m_doc_splitters);
     }
 
@@ -109,9 +109,9 @@ public:
             sdsl::structure_tree::add_child(v, name, util::class_name(*this));
         size_type written_bytes = 0;
         written_bytes += m_csa.serialize(out, child, "CSA");
-        written_bytes += m_doc_splitters.serialize(out, child, "DOC_SPLITTERS");
+        written_bytes += m_doc_splitters.serialize(out, child, "DOCBORDER");
         written_bytes += m_doc_splitters_rank.serialize(out, child,
-                "DOC_SPLITTERS_RANK");
+                "DOCBORDER_RANK");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -127,8 +127,8 @@ void build_doc_splitters(sdsl::cache_config& cc, const t_vec& vec) {
             bv[i] = 1;
     sdsl::rrr_vector<> bvr(bv);
     sdsl::rrr_vector<>::rank_1_type rank(&bvr);
-    store_to_cache(bvr, surf::KEY_DOC_SPLITTERS, cc, true);
-    store_to_cache(rank, surf::KEY_DOC_SPLITTERS_RANK, cc, true);
+    store_to_cache(bvr, surf::KEY_DOCBORDER, cc, true);
+    store_to_cache(rank, surf::KEY_DOCBORDER_RANK, cc, true);
 }
 }
 
@@ -143,8 +143,8 @@ void construct(idx_brute<t_csa>& idx, const std::string&, sdsl::cache_config& cc
         construct(csa, "", cc, 0);
         store_to_cache(csa, surf::KEY_CSA, cc, true);
     }
-    std::cout << "Need document splitters" << std::endl;
-    if (!cache_file_exists<sdsl::rrr_vector<>>(surf::KEY_DOC_SPLITTERS, cc)) {
+    std::cout << "Need doc borders" << std::endl;
+    if (!cache_file_exists<sdsl::rrr_vector<>>(surf::KEY_DOCBORDER, cc)) {
         std::cout << "  building..." << std::endl;
         if (std::is_same<typename t_idx::alphabet_category,
                          sdsl::int_alphabet_tag>::value) {

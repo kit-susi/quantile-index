@@ -8,7 +8,7 @@ def get_ngram(text, n):
     while True:
         i = random.randrange(len(text) - n)
         ngram = text[i:i+n]
-        if '\1' not in ngram:
+        if '\1' not in ngram and '\n' not in ngram:
             return ngram
 
 def is_sorted(lst, eps):
@@ -46,12 +46,14 @@ if __name__ == '__main__':
     p.add_argument('-c', metavar='DIRECTORY', help='Input collection')
     p.add_argument('-n', default=3, type=int, metavar='INT',
             help='ngram size for queries')
-    p.add_argument('-s', default=20, type=int, metavar='INT',
+    p.add_argument('-q', default=20, type=int, metavar='INT',
             help='Number of sample queries')
     p.add_argument('-k', default=20, type=int, metavar='INT',
             help='Retrieve top k documents')
     p.add_argument('-e', default=1e-6, type=float, metavar='FLOAT',
             help='Epsilon for score comparisons')
+    p.add_argument('-s', default=random.randrange(1000000), type=float, metavar='FLOAT',
+            help='Random seed')
 
     args = p.parse_args()
     with open(args.c + '/text_SURF.sdsl') as f:
@@ -71,8 +73,11 @@ if __name__ == '__main__':
         print '    Running command: %s' % ' '.join(cmd)
         subprocess.check_output(cmd)
 
-    queries = [get_ngram(text, args.n) for _ in range(args.s)]
-    for q in queries:
+    print 'Seed = %d' % args.s
+    random.seed(args.s)
+
+    for _ in range(args.q):
+        q = get_ngram(text, args.n)
         print 'Query:', repr(q)
         last_result = None
         with tempfile.NamedTemporaryFile() as f:
@@ -97,3 +102,6 @@ if __name__ == '__main__':
                     print last_result, '!=', result
                     assert 0
                 last_result = result
+        seed = random.randrange(1000000)
+        print "New seed = %d" % seed
+        random.seed(seed)

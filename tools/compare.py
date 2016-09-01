@@ -24,6 +24,8 @@ def result_makes_sense(result, eps):
 
 def results_are_same(a, b, eps):
     """ a, b are lists of (docid, score), where docid is int and score is float. """
+    if len(a) != len(b):
+        return False
     # scores are the same
     for (d1, s1), (d2, s2) in zip(a, b):
         if abs(s1 - s2) > eps:

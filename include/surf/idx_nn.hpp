@@ -6,6 +6,7 @@
 #include <memory>
 #include <queue>
 #include <set>
+#include <unordered_set>
 
 #include "sdsl/k2_treap.hpp"
 #include "sdsl/suffix_trees.hpp"
@@ -115,11 +116,6 @@ public:
         bool               m_multi_occ = false; // true, if document has to occur more than once
     public:
         top_k_iterator() = delete;
-        top_k_iterator(const top_k_iterator&) = default;
-        top_k_iterator(top_k_iterator&&) = default;
-        top_k_iterator& operator=(const top_k_iterator&) = default;
-        top_k_iterator& operator=(top_k_iterator&&) = default;
-
         top_k_iterator(const idx_nn* idx, t_pat_iter begin, t_pat_iter end,
                        bool multi_occ, bool only_match) :
             m_idx(idx), m_multi_occ(multi_occ) {
@@ -130,7 +126,9 @@ public:
                 auto h_range = m_idx->m_map_to_h(m_sp, m_ep);
                 if (!empty(h_range)) {
                     uint64_t depth = end - begin;
-                    m_k2_iter = top_k(m_idx->m_k2treap, {std::get<0>(h_range) , 0}, {std::get<1>(h_range), depth - 1});
+                    m_k2_iter = top_k(m_idx->m_k2treap,
+                    {std::get<0>(h_range), 0},
+                    {std::get<1>(h_range), depth - 1});
                 }
                 m_states.push({m_sp, m_ep});
                 this->next();
@@ -138,10 +136,11 @@ public:
         }
 
         topk_snippet extract_snippet(const size_t k) const override {
-            size_type s = m_doc_val.first == 0 ?
-                            0 : (m_idx->m_border_select(m_doc_val.first) + 1);
+            size_type s = (m_doc_val.first == 0)
+                          ?  0
+                          : (m_idx->m_border_select(m_doc_val.first) + 1);
             size_type e = std::min(s + k,
-                                    m_idx->m_border_select(m_doc_val.first + 1) - 1);
+                                   m_idx->m_border_select(m_doc_val.first + 1) - 1);
             auto res = extract(m_idx->m_csa, s, e);
             return topk_snippet(res.begin(), res.end());
         }
@@ -192,13 +191,47 @@ public:
     };
 
     template <typename t_pat_iter>
-    std::unique_ptr<topk_iterator> topk(t_pat_iter begin, t_pat_iter end,
+    std::unique_ptr<topk_iterator> topk(size_t k, t_pat_iter begin, t_pat_iter end,
                                         bool multi_occ = false,
                                         bool only_match = false) {
-        //if (t_sort_by_depth)
-        return std::make_unique<top_k_iterator<t_pat_iter>>(
-                this, begin, end, multi_occ, only_match);
-        //else
+        if (t_sort_by_depth) {
+            return std::make_unique<top_k_iterator<t_pat_iter>>(
+                       this, begin, end, multi_occ, only_match);
+        } else {
+            m_results.clear();
+            uint64_t sp, ep;
+            bool valid = backward_search(m_csa, 0, m_csa.size() - 1, begin,
+                                         end, sp, ep) > 0;
+            if (valid) {
+                auto h_range = m_map_to_h(sp, ep);
+                if (!empty(h_range)) {
+                    auto k2_iter = top_k(m_k2treap,
+                                         {std::get<0>(h_range), 0},
+                                         {std::get<1>(h_range), doc_cnt() + 1});
+                    std::unordered_set<uint64_t> docs_seen;
+                    int superseded = 0, total = 0;
+                    size_t x = 0;
+                    while (k2_iter && x < k) {
+                        ++total;
+                        ++x;
+                        //auto x = real((*k2_iter).first);
+                        auto d = imag((*k2_iter).first);
+                        auto weight = (*k2_iter).second;
+                        ++k2_iter;
+                        if (docs_seen.count(d)) {
+                            superseded++;
+                            continue;
+                        }
+                        docs_seen.insert(d);
+                        //cout << x << " " << d << " "  << weight << endl;
+                        m_results.emplace_back(d, weight + 1);
+                    }
+                    //cout << superseded << " / " << total << endl;
+                }
+                // TODO singleton results
+            }
+            return sort_topk_results(&m_results);
+        }
     }
 
     result search(const std::vector<query_token>& qry, size_t k,
@@ -476,7 +509,7 @@ void construct(idx_nn<t_csa, t_k2treap, t_sort_by_depth, t_rmq, t_border, t_bord
         uint64_t depth = 0;
 
         int_vector_buffer<> P_buf(P_file, std::ios::out, 1 << 20,
-                sdsl::bits::hi(t_sort_by_depth ? max_depth : doc_cnt) + 1);
+                                  sdsl::bits::hi(t_sort_by_depth ? max_depth : doc_cnt) + 1);
 
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {

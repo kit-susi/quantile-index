@@ -38,7 +38,8 @@ public:
     }
 
     template<typename t_pat_iter>
-    std::unique_ptr<topk_iterator> topk(t_pat_iter begin, t_pat_iter end,
+    std::unique_ptr<topk_iterator> topk(size_t k,
+                                        t_pat_iter begin, t_pat_iter end,
                                         bool multi_occ = false,
                                         bool only_match = false) {
         assert(!only_match);

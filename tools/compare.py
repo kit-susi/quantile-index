@@ -3,6 +3,7 @@ import argparse
 import random
 import subprocess
 import tempfile
+import time
 
 def get_ngram(text, n):
     while True:
@@ -87,12 +88,16 @@ if __name__ == '__main__':
             f.flush()
             for config in args.targets:
                 print '    Running with %s' % config
+                t0 = time.time()
                 out = subprocess.check_output([
                     'build/surf_query-%s' % config,
                     '-c', args.c,
                     '-q', f.name,
+                    '-k', str(args.k),
                     '-v'
                 ])
+                timediff = time.time() - t0
+                print '      Took %.03f ms' % (timediff*1000)
                 lines = out.strip().splitlines()
                 parts = [l.split(';') for l in lines]
                 result = [(int(docid), float(score)) for _, _, docid, score in parts]

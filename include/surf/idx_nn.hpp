@@ -45,13 +45,20 @@ struct map_to_dup_type {
     }
 };
 
+// Treap selection algo
+enum class treap_algo {
+    SORT_BY_DEPTH,
+    SORT_BY_DOCID_NAIVE,
+    SORT_BY_DOCID_SMART,
+};
+
 /*! Class idx_nn consists of a
  *   - CSA over the collection concatenation
  *   - H
  */
 template<typename t_csa,
          typename t_k2treap,
-         bool     t_sort_by_depth = true,
+         treap_algo t_treap_algo = treap_algo::SORT_BY_DEPTH,
          typename t_rmq = sdsl::rmq_succinct_sct<>,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
@@ -194,43 +201,57 @@ public:
     std::unique_ptr<topk_iterator> topk(size_t k, t_pat_iter begin, t_pat_iter end,
                                         bool multi_occ = false,
                                         bool only_match = false) {
-        if (t_sort_by_depth) {
-            return std::make_unique<top_k_iterator<t_pat_iter>>(
-                       this, begin, end, multi_occ, only_match);
-        } else {
-            m_results.clear();
-            uint64_t sp, ep;
-            bool valid = backward_search(m_csa, 0, m_csa.size() - 1, begin,
-                                         end, sp, ep) > 0;
-            if (valid) {
-                auto h_range = m_map_to_h(sp, ep);
-                if (!empty(h_range)) {
-                    auto k2_iter = top_k(m_k2treap,
-                                         {std::get<0>(h_range), 0},
-                                         {std::get<1>(h_range), doc_cnt() + 1});
-                    std::unordered_set<uint64_t> docs_seen;
-                    int superseded = 0, total = 0;
-                    size_t x = 0;
-                    while (k2_iter && x < k) {
-                        ++total;
-                        ++x;
-                        //auto x = real((*k2_iter).first);
-                        auto d = imag((*k2_iter).first);
-                        auto weight = (*k2_iter).second;
-                        ++k2_iter;
-                        if (docs_seen.count(d)) {
-                            superseded++;
-                            continue;
-                        }
-                        docs_seen.insert(d);
-                        //cout << x << " " << d << " "  << weight << endl;
-                        m_results.emplace_back(d, weight + 1);
-                    }
-                    //cout << superseded << " / " << total << endl;
-                }
-                // TODO singleton results
+        switch (t_treap_algo) {
+            case treap_algo::SORT_BY_DEPTH: {
+                return std::make_unique<top_k_iterator<t_pat_iter>>(
+                        this, begin, end, multi_occ, only_match);
             }
-            return sort_topk_results(&m_results);
+            case treap_algo::SORT_BY_DOCID_NAIVE: {
+                m_results.clear();
+                uint64_t sp, ep;
+                bool valid = backward_search(m_csa, 0, m_csa.size() - 1, begin,
+                                            end, sp, ep) > 0;
+                if (valid) {
+                    auto h_range = m_map_to_h(sp, ep);
+                    if (!empty(h_range)) {
+                        auto k2_iter = top_k(m_k2treap,
+                                            {std::get<0>(h_range), 0},
+                                            {std::get<1>(h_range), doc_cnt() + 1});
+                        std::unordered_set<uint64_t> docs_seen;
+                        while (k2_iter && m_results.size() < k) {
+                            auto d = imag((*k2_iter).first);
+                            auto weight = (*k2_iter).second;
+                            ++k2_iter;
+                            if (docs_seen.count(d))
+                                continue;
+                            docs_seen.insert(d);
+                            //auto x = real((*k2_iter).first);
+                            //cout << x << " " << d << " "  << weight << endl;
+                            m_results.emplace_back(d, weight + 1);
+                        }
+                    }
+                    // TODO singleton results
+                }
+                return sort_topk_results(&m_results);
+            }
+            case treap_algo::SORT_BY_DOCID_SMART: {
+                m_results.clear();
+                uint64_t sp, ep;
+                bool valid = backward_search(m_csa, 0, m_csa.size() - 1, begin,
+                                            end, sp, ep) > 0;
+                if (valid) {
+                    auto h_range = m_map_to_h(sp, ep);
+                    if (!empty(h_range)) {
+                        auto res = topk_sorted_by_docid(m_k2treap, k,
+                                                        std::get<0>(h_range),
+                                                        std::get<1>(h_range));
+                        for (auto it : res)
+                            m_results.emplace_back(it.second, it.first + 1);
+                    }
+                    // TODO singleton results
+                }
+                return sort_topk_results(&m_results);
+            }
         }
     }
 
@@ -382,7 +403,7 @@ struct map_node_to_dup_type {
 
 template<typename t_csa,
          typename t_k2treap,
-         bool     t_sort_by_depth,
+         treap_algo t_treap_algo,
          typename t_rmq,
          typename t_border,
          typename t_border_rank,
@@ -393,7 +414,7 @@ template<typename t_csa,
          bool       offset_encoding,
          typename t_doc_offset
          >
-void construct(idx_nn<t_csa, t_k2treap, t_sort_by_depth, t_rmq, t_border, t_border_rank,
+void construct(idx_nn<t_csa, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
                t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding,
                t_doc_offset>& idx, const std::string&, sdsl::cache_config& cc,
                uint8_t num_bytes) {
@@ -402,7 +423,7 @@ void construct(idx_nn<t_csa, t_k2treap, t_sort_by_depth, t_rmq, t_border, t_bord
     using t_df = DF_TYPE;
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn<t_csa, t_k2treap, t_sort_by_depth, t_rmq, t_border, t_border_rank,
+    using idx_type = idx_nn<t_csa, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 
@@ -509,13 +530,15 @@ void construct(idx_nn<t_csa, t_k2treap, t_sort_by_depth, t_rmq, t_border, t_bord
         uint64_t depth = 0;
 
         int_vector_buffer<> P_buf(P_file, std::ios::out, 1 << 20,
-                                  sdsl::bits::hi(t_sort_by_depth ? max_depth : doc_cnt) + 1);
+                                  sdsl::bits::hi(t_treap_algo == treap_algo::SORT_BY_DEPTH
+                                      ? max_depth : doc_cnt) + 1);
 
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
             if (!cst.is_leaf(v)) {
-                if (it.visit() == 1 && t_sort_by_depth) {  // node visited the first time
+                if (it.visit() == 1 && t_treap_algo == treap_algo::SORT_BY_DEPTH) {
+                    // node visited the first time
                     depth = cst.depth(v);
                     range_type r = map_node_to_dup(v);
                     if (!empty(r)) {
@@ -527,7 +550,7 @@ void construct(idx_nn<t_csa, t_k2treap, t_sort_by_depth, t_rmq, t_border, t_bord
                     range_type r = map_node_to_dup(v);
                     if (!empty(r)) {
                         for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
-                            if (t_sort_by_depth) {
+                            if (t_treap_algo == treap_algo::SORT_BY_DEPTH) {
                                 depths[dup[i]].pop();
                                 P_buf[i] = depths[dup[i]].top();
                             } else {

@@ -1,16 +1,19 @@
 #ifndef SURF_IDX_NN_HPP
 #define SURF_IDX_NN_HPP
 
-#include "sdsl/suffix_trees.hpp"
-#include "sdsl/k2_treap.hpp"
-#include "surf/df_sada.hpp"
-#include "surf/rank_functions.hpp"
-#include "surf/idx_d.hpp"
-#include "surf/construct_col_len.hpp"
 #include <algorithm>
 #include <limits>
+#include <memory>
 #include <queue>
 #include <set>
+
+#include "sdsl/k2_treap.hpp"
+#include "sdsl/suffix_trees.hpp"
+#include "surf/construct_col_len.hpp"
+#include "surf/df_sada.hpp"
+#include "surf/idx_d.hpp"
+#include "surf/rank_functions.hpp"
+#include "surf/vector_topk_iterator.hpp"
 
 namespace surf {
 
@@ -40,8 +43,6 @@ struct map_to_dup_type {
         return {sp_, ep_};
     }
 };
-
-
 
 /*! Class idx_nn consists of a
  *   - CSA over the collection concatenation
@@ -92,11 +93,13 @@ public:
     rmqc_type          m_rmqc;
     k2treap_type       m_k2treap;
     map_to_h_type      m_map_to_h;
+    topk_result_set    m_results;
 
 public:
-
-    class top_k_iterator {
+    template<typename t_pat_iter>
+    class top_k_iterator : public topk_iterator {
     public:
+        using k2treap_iterator = k2_treap_ns::top_k_iterator<t_k2treap>;
         typedef std::pair<uint64_t, double> t_doc_val;
         typedef std::stack<std::array<uint64_t, 2>> t_stack_array;
     private:
@@ -117,10 +120,11 @@ public:
         top_k_iterator& operator=(const top_k_iterator&) = default;
         top_k_iterator& operator=(top_k_iterator&&) = default;
 
-        template<typename t_pat_iter>
-        top_k_iterator(const idx_nn* idx, t_pat_iter begin, t_pat_iter end, bool multi_occ, bool only_match) :
+        top_k_iterator(const idx_nn* idx, t_pat_iter begin, t_pat_iter end,
+                       bool multi_occ, bool only_match) :
             m_idx(idx), m_multi_occ(multi_occ) {
-            m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size() - 1, begin, end, m_sp, m_ep) > 0;
+            m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size() - 1,
+                                      begin, end, m_sp, m_ep) > 0;
             m_valid &= !only_match;
             if (m_valid) {
                 auto h_range = m_idx->m_map_to_h(m_sp, m_ep);
@@ -129,25 +133,27 @@ public:
                     m_k2_iter = top_k(m_idx->m_k2treap, {std::get<0>(h_range) , 0}, {std::get<1>(h_range), depth - 1});
                 }
                 m_states.push({m_sp, m_ep});
-                ++(*this);
+                this->next();
             }
         }
 
-        auto extract_snippet(const size_type k) const {
+        topk_snippet extract_snippet(const size_t k) const override {
             size_type s = m_doc_val.first == 0 ?
-                          0 : (m_idx->m_border_select(m_doc_val.first) + 1);
+                            0 : (m_idx->m_border_select(m_doc_val.first) + 1);
             size_type e = std::min(s + k,
-                                   m_idx->m_border_select(m_doc_val.first + 1) - 1);
-            return extract(m_idx->m_csa, s, e);
+                                    m_idx->m_border_select(m_doc_val.first + 1) - 1);
+            auto res = extract(m_idx->m_csa, s, e);
+            return topk_snippet(res.begin(), res.end());
         }
 
-        top_k_iterator& operator++() {
+        void next() override {
             if (m_valid) {
                 m_valid = false;
                 if (m_k2_iter) {   // multiple occurrence result exists
-                    auto xy_w       = *m_k2_iter;
-                    uint64_t doc_id = offset_encoding ?
-                                      m_idx->get_doc(real(xy_w.first)) : m_idx->m_doc[real(xy_w.first)];
+                    auto xy_w = *m_k2_iter;
+                    uint64_t doc_id = offset_encoding
+                                      ? m_idx->get_doc(real(xy_w.first))
+                                      : m_idx->m_doc[real(xy_w.first)];
                     m_doc_val = t_doc_val(doc_id, xy_w.second + 1);
                     m_reported.insert(doc_id);
                     m_valid = true;
@@ -174,22 +180,25 @@ public:
                     }
                 }
             }
-            return *this;
         }
 
-        t_doc_val operator*() const {
+        t_doc_val get() const override {
             return m_doc_val;
         }
 
-        bool done() const {
+        bool done() const override {
             return !m_valid;
         }
     };
 
-    template<typename t_pat_iter>
-    top_k_iterator topk(t_pat_iter begin, t_pat_iter end, bool multi_occ = false,
-                        bool only_match = false) const {
-        return top_k_iterator(this, begin, end, multi_occ, only_match);
+    template <typename t_pat_iter>
+    std::unique_ptr<topk_iterator> topk(t_pat_iter begin, t_pat_iter end,
+                                        bool multi_occ = false,
+                                        bool only_match = false) {
+        //if (t_sort_by_depth)
+        return std::make_unique<top_k_iterator<t_pat_iter>>(
+                this, begin, end, multi_occ, only_match);
+        //else
     }
 
     result search(const std::vector<query_token>& qry, size_t k,

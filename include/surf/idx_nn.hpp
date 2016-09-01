@@ -49,6 +49,7 @@ struct map_to_dup_type {
  */
 template<typename t_csa,
          typename t_k2treap,
+         bool     t_sort_by_depth = true,
          typename t_rmq = sdsl::rmq_succinct_sct<>,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
@@ -339,6 +340,7 @@ struct map_node_to_dup_type {
 
 template<typename t_csa,
          typename t_k2treap,
+         bool     t_sort_by_depth,
          typename t_rmq,
          typename t_border,
          typename t_border_rank,
@@ -349,16 +351,16 @@ template<typename t_csa,
          bool       offset_encoding,
          typename t_doc_offset
          >
-void construct(idx_nn<t_csa, t_k2treap, t_rmq, t_border, t_border_rank, t_border_select,
-               t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>& idx,
-               const std::string&,
-               sdsl::cache_config& cc, uint8_t num_bytes) {
+void construct(idx_nn<t_csa, t_k2treap, t_sort_by_depth, t_rmq, t_border, t_border_rank,
+               t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding,
+               t_doc_offset>& idx, const std::string&, sdsl::cache_config& cc,
+               uint8_t num_bytes) {
     using namespace sdsl;
     using namespace std;
     using t_df = DF_TYPE;
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn<t_csa, t_k2treap, t_rmq, t_border, t_border_rank,
+    using idx_type = idx_nn<t_csa, t_k2treap, t_sort_by_depth, t_rmq, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 
@@ -445,8 +447,6 @@ void construct(idx_nn<t_csa, t_k2treap, t_rmq, t_border, t_border_rank, t_border
 
         std::string P_file = cache_file_name(key_p, cc);
 
-        int_vector_buffer<> P_buf(P_file, std::ios::out, 1 << 20, sdsl::bits::hi(max_depth) + 1);
-
         t_wtd wtd;
         load_from_cache(wtd, surf::KEY_WTD, cc, true);
 
@@ -465,11 +465,15 @@ void construct(idx_nn<t_csa, t_k2treap, t_rmq, t_border, t_border_rank, t_border
         //  HELPER to build the pointer structure
         vector<t_stack> depths(doc_cnt, t_stack(vector<uint32_t>(1, 0))); // doc_cnt stack for last depth
         uint64_t depth = 0;
+
+        int_vector_buffer<> P_buf(P_file, std::ios::out, 1 << 20,
+                sdsl::bits::hi(t_sort_by_depth ? max_depth : doc_cnt) + 1);
+
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
             if (!cst.is_leaf(v)) {
-                if (it.visit() == 1) {  // node visited the first time
+                if (it.visit() == 1 && t_sort_by_depth) {  // node visited the first time
                     depth = cst.depth(v);
                     range_type r = map_node_to_dup(v);
                     if (!empty(r)) {
@@ -481,8 +485,12 @@ void construct(idx_nn<t_csa, t_k2treap, t_rmq, t_border, t_border_rank, t_border
                     range_type r = map_node_to_dup(v);
                     if (!empty(r)) {
                         for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
-                            depths[dup[i]].pop();
-                            P_buf[i] = depths[dup[i]].top();
+                            if (t_sort_by_depth) {
+                                depths[dup[i]].pop();
+                                P_buf[i] = depths[dup[i]].top();
+                            } else {
+                                P_buf[i] = dup[i];
+                            }
                         }
                     }
                 }

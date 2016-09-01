@@ -52,7 +52,7 @@ if __name__ == '__main__':
             help='Retrieve top k documents')
     p.add_argument('-e', default=1e-6, type=float, metavar='FLOAT',
             help='Epsilon for score comparisons')
-    p.add_argument('-s', default=random.randrange(1000000), type=float, metavar='FLOAT',
+    p.add_argument('-s', default=random.randrange(1000000), type=int, metavar='INT',
             help='Random seed')
 
     args = p.parse_args()

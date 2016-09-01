@@ -198,14 +198,15 @@ int main(int argc, char* argv[])
             ++q_cnt;
             size_t x = 0;
             auto res_it = idx.topk(query.begin(), query.end(), args.multi_occ, args.match_only);
-            while (x < args.k and !res_it.done()) {
+            while (x < args.k and !res_it->done()) {
                 ++x;
-                sum_fdt += (*res_it).second;
+                sum_fdt += res_it->get().second;
                 if (args.verbose) {
-                    cout << q_cnt << ";" << x << ";" << (*res_it).first << ";" << (*res_it).second << endl;
+                    cout << q_cnt << ";" << x << ";" << res_it->get().first
+                        << ";" << res_it->get().second << endl;
                 }
                 if (args.snippet_size != 0) {
-                    auto snippet = res_it.extract_snippet(args.snippet_size);
+                    auto snippet = res_it->extract_snippet(args.snippet_size);
                     sum_chars_extracted += snippet.size();
                     if (args.verbose) {
                         for (const auto c : snippet)
@@ -214,7 +215,7 @@ int main(int argc, char* argv[])
                     }
                 }
                 if (x < args.k)
-                    ++res_it;
+                    res_it->next();
             }
             sum += x;
             auto q_time = timer::now() - q_start;

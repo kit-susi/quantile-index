@@ -49,9 +49,9 @@ const std::string KEY_INVFILE_DOCPERM = "invfile_docperm";
 const std::string KEY_INVFILE_IDOCPERM = "invfile_inv_docperm";
 const std::string KEY_F_T = "Ft";
 const std::string KEY_H = "H";
-const std::string KEY_H_SELECT  = "H_select";              
-const std::string KEY_H_SELECT_0  = "H_select_0";              
-const std::string KEY_H_SELECT_1  = "H_select_1";              
+const std::string KEY_H_SELECT  = "H_select";
+const std::string KEY_H_SELECT_0  = "H_select_0";
+const std::string KEY_H_SELECT_1  = "H_select_1";
 const std::string KEY_CSA = "csa";
 const std::string KEY_MAXTF = "maxtf";
 const std::string KEY_MAXDOCLEN = "maxdoclen";
@@ -61,35 +61,36 @@ const std::string KEY_WEIGHTS_G = "weights_g";
 const std::string KEY_W_AND_P = "W_and_P";
 const std::string KEY_W_AND_P_G = "W_and_P_g";
 
-std::vector<std::string> storage_keys = {KEY_DOCCNT,
-										 KEY_DARRAY,
-										 KEY_DOCPERM,
-										 KEY_SADADF,
-										 KEY_WTD,
-										 KEY_C,
-										 KEY_WTC,
-										 KEY_TMPCST,
-										 KEY_TMPDUP,
-										 KEY_DUP,
-										 KEY_WTDUP,
-                                         KEY_MAXTF,
-										 KEY_DOCCNT,
-										 KEY_DOC_LENGTHS,
-                                         KEY_COLLEN,
-										 KEY_INVFILE_TERM_RANGES,
-										 KEY_INVFILE_PLISTS,
-                                         KEY_H,
-                                         KEY_U,
-                                         KEY_WTU,
-                                         KEY_CSA,
-                                         sdsl::conf::KEY_TEXT,
-                                         sdsl::conf::KEY_TEXT_INT,
-                                         sdsl::conf::KEY_SA,
-                                         sdsl::conf::KEY_LCP,
-                                         sdsl::conf::KEY_BWT,
-                                         sdsl::conf::KEY_BWT_INT,
-                                         sdsl::conf::KEY_PSI
-               };
+std::vector<std::string> storage_keys = {
+    KEY_DOCCNT,
+    KEY_DARRAY,
+    KEY_DOCPERM,
+    KEY_SADADF,
+    KEY_WTD,
+    KEY_C,
+    KEY_WTC,
+    KEY_TMPCST,
+    KEY_TMPDUP,
+    KEY_DUP,
+    KEY_WTDUP,
+    KEY_MAXTF,
+    KEY_DOCCNT,
+    KEY_DOC_LENGTHS,
+    KEY_COLLEN,
+    KEY_INVFILE_TERM_RANGES,
+    KEY_INVFILE_PLISTS,
+    KEY_H,
+    KEY_U,
+    KEY_WTU,
+    KEY_CSA,
+    sdsl::conf::KEY_TEXT,
+    sdsl::conf::KEY_TEXT_INT,
+    sdsl::conf::KEY_SA,
+    sdsl::conf::KEY_LCP,
+    sdsl::conf::KEY_BWT,
+    sdsl::conf::KEY_BWT_INT,
+    sdsl::conf::KEY_PSI
+};
 
 } // end namespace
 #endif

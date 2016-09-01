@@ -3,6 +3,7 @@ import argparse
 import random
 import subprocess
 import tempfile
+import threading
 import time
 
 def get_ngram(text, n):
@@ -49,42 +50,61 @@ if __name__ == '__main__':
     p.add_argument('-c', metavar='DIRECTORY', help='Input collection')
     p.add_argument('-n', default=3, type=int, metavar='INT',
             help='ngram size for queries')
-    p.add_argument('-q', default=20, type=int, metavar='INT',
-            help='Number of sample queries')
+    p.add_argument('-r', default=20, type=int, metavar='INT',
+            help='Number of testing rounds')
+    p.add_argument('-q', default=1, type=int, metavar='INT',
+            help='Number of queries per round. For q > 1, no verification is done')
     p.add_argument('-k', default=20, type=int, metavar='INT',
             help='Retrieve top k documents')
     p.add_argument('-e', default=1e-6, type=float, metavar='FLOAT',
             help='Epsilon for score comparisons')
-    p.add_argument('-s', default=random.randrange(1000000), type=int, metavar='INT',
+    p.add_argument('--seed', default=random.randrange(1000000), type=int, metavar='INT',
             help='Random seed')
+    p.add_argument('--sequential', default=False, action='store_true',
+            help='Build collections in sequence, instead of parallel')
 
     args = p.parse_args()
-    with open(args.c + '/text_SURF.sdsl') as f:
-        # strip 8-byte header
-        text = f.read()[8:]
-
     if args.clear:
         print 'Deleting old indexes'
         subprocess.check_call(['rm', '-r', args.c + '/index'])
 
+    threads = []
     for config in args.targets:
-        print 'Building index for config %s' % config
-        cmd = [
-            'build/surf_index-%s' % config,
-            '-c', args.c
-        ]
-        print '    Running command: %s' % ' '.join(cmd)
-        subprocess.check_output(cmd)
+        def build(config):
+            print 'Building index for config %s' % config
+            cmd = [
+                'build/surf_index-%s' % config,
+                '-c', args.c
+            ]
+            print '    Running command: %s' % ' '.join(cmd)
+            subprocess.check_output(cmd)
 
-    print 'Seed = %d' % args.s
-    random.seed(args.s)
+        t = threading.Thread(target=build, args=(config,))
+        t.start()
+        if args.sequential:
+            t.join()
+        else:
+            threads.append(t)
 
-    for _ in range(args.q):
-        q = get_ngram(text, args.n)
-        print 'Query:', repr(q)
+    print 'Waiting for %d builder threads' % len(threads)
+    for t in threads:
+        t.join()
+
+    with open(args.c + '/text_SURF.sdsl') as f:
+        # strip 8-byte header
+        text = f.read()[8:]
+
+    print 'Seed = %d' % args.seed
+    random.seed(args.seed)
+
+    for _ in range(args.r):
+        queries = []
+        for _ in range(args.q):
+            queries.append(get_ngram(text, args.n))
+        print 'Starting new round'
         last_result = None
         with tempfile.NamedTemporaryFile() as f:
-            f.write(q + '\n')
+            f.write('\n'.join(queries) + '\n')
             f.flush()
             for config in args.targets:
                 print '    Running with %s' % config
@@ -98,17 +118,21 @@ if __name__ == '__main__':
                 ])
                 timediff = time.time() - t0
                 print '      Took %.03f ms' % (timediff*1000)
-                lines = out.strip().splitlines()
-                parts = [l.split(';') for l in lines]
-                result = [(int(docid), float(score)) for _, _, docid, score in parts]
-                if not result_makes_sense(result, args.e):
-                    print 'Result is not sorted:', result
-                    assert 0
-                if (last_result is not None
-                        and not results_are_same(last_result, result, args.e)):
-                    print last_result, '!=', result
-                    assert 0
-                last_result = result
+                # check correctness only for q = 1
+                if args.q == 1:
+                    lines = out.strip().splitlines()
+                    parts = [l.split(';') for l in lines]
+                    result = [(int(docid), float(score)) for _, _, docid, score in parts]
+                    if not result_makes_sense(result, args.e):
+                        print 'Queries:', repr(queries)
+                        print 'Result is not sorted:', result
+                        assert 0
+                    if (last_result is not None
+                            and not results_are_same(last_result, result, args.e)):
+                        print 'Queries:', repr(queries)
+                        print last_result, '!=', result
+                        assert 0
+                    last_result = result
         seed = random.randrange(1000000)
         print "New seed = %d" % seed
         random.seed(seed)

@@ -242,9 +242,9 @@ public:
                 if (valid) {
                     auto h_range = m_map_to_h(sp, ep);
                     if (!empty(h_range)) {
-                        auto res = topk_sorted_by_docid(m_k2treap, k,
-                                                        std::get<0>(h_range),
-                                                        std::get<1>(h_range));
+                        auto res = topk_increasing_y(m_k2treap, k,
+                                                     std::get<0>(h_range),
+                                                     std::get<1>(h_range));
                         for (auto it : res)
                             m_results.emplace_back(it.second, it.first + 1);
                     }

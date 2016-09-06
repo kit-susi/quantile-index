@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 import argparse
 import random
+import re
 import subprocess
 import tempfile
 import threading
@@ -24,8 +25,14 @@ def result_makes_sense(result, eps):
     """ result is list of (docid, score), where docid is int and score is float. """
     return is_sorted([score for _, score in reversed(result)], eps)
 
-def results_are_same(a, b, eps):
+def delete_singletons(lst, eps):
+    return [(d, w) for d, w in lst if abs(w - 1) > eps]
+
+def results_are_same(a, b, eps, ignore_singletons=False):
     """ a, b are lists of (docid, score), where docid is int and score is float. """
+    if ignore_singletons:
+        a = delete_singletons(a, eps)
+        b = delete_singletons(b, eps)
     if len(a) != len(b):
         return False
     # scores are the same
@@ -39,6 +46,16 @@ def results_are_same(a, b, eps):
         if abs(scores1[doc] - scores2[doc]) > eps:
             return False
     return True
+
+def print_side_by_side(a, b):
+    for (d1, s1), (d2, s2) in zip(a, b):
+        print '%10s%10s%10s%10s' % (d1, s1, d2, s2)
+    if len(b) > len(a):
+        for d2, s2 in b[len(a):]:
+            print '%10s%10s%10s%10s' % ('','', d2, s2)
+    else:
+        for d1, s1 in a[len(b):]:
+            print '%10s%10s%10s%10s' % (d1, s1, '', '')
 
 
 if __name__ == '__main__':
@@ -62,6 +79,8 @@ if __name__ == '__main__':
             help='Random seed')
     p.add_argument('--sequential', default=False, action='store_true',
             help='Build collections in sequence, instead of parallel')
+    p.add_argument('--ignore_singletons', default=False, action='store_true',
+            help='Ignore single-document occurences (weight 1)')
 
     args = p.parse_args()
     if args.clear:
@@ -108,18 +127,18 @@ if __name__ == '__main__':
             f.flush()
             for config in args.targets:
                 print '    Running with %s' % config
-                t0 = time.time()
-                out = subprocess.check_output([
+                cmd = [
                     'build/surf_query-%s' % config,
                     '-c', args.c,
                     '-q', f.name,
                     '-k', str(args.k),
-                    '-v'
-                ])
-                timediff = time.time() - t0
-                print '      Took %.03f ms' % (timediff*1000)
-                # check correctness only for q = 1
+                ]
                 if args.q == 1:
+                    cmd += ['-v']
+
+                out = subprocess.check_output(cmd)
+                if args.q == 1:
+                    # check correctness only for q = 1
                     lines = out.strip().splitlines()
                     parts = [l.split(';') for l in lines]
                     result = [(int(docid), float(score)) for _, _, docid, score in parts]
@@ -128,11 +147,17 @@ if __name__ == '__main__':
                         print 'Result is not sorted:', result
                         assert 0
                     if (last_result is not None
-                            and not results_are_same(last_result, result, args.e)):
+                            and not results_are_same(last_result, result,
+                                args.e, args.ignore_singletons)):
                         print 'Queries:', repr(queries)
-                        print last_result, '!=', result
+                        print 'Different results:'
+                        print_side_by_side(last_result, result)
                         assert 0
                     last_result = result
+                else:
+                    # otherwise print time
+                    time_per_query = int(out.split('time_per_query = ')[1].split()[0])
+                    print '      Time per query: %d' % time_per_query
         seed = random.randrange(1000000)
         print "New seed = %d" % seed
         random.seed(seed)

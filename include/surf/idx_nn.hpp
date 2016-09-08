@@ -14,7 +14,7 @@
 #include "surf/df_sada.hpp"
 #include "surf/idx_d.hpp"
 #include "surf/rank_functions.hpp"
-#include "surf/vector_topk_iterator.hpp"
+#include "surf/topk_interface.hpp"
 
 namespace surf {
 
@@ -57,6 +57,7 @@ enum class treap_algo {
  *   - H
  */
 template<typename t_csa,
+         typename t_token,
          typename t_k2treap,
          treap_algo t_treap_algo = treap_algo::SORT_BY_DEPTH,
          typename t_rmq = sdsl::rmq_succinct_sct<>,
@@ -69,7 +70,7 @@ template<typename t_csa,
          bool     offset_encoding = true,
          typename t_doc_offset = sdsl::hyb_sd_vector<>
          >
-class idx_nn {
+class idx_nn : public topk_index<t_token> {
 public:
     using size_type = sdsl::int_vector<>::size_type;
     typedef t_csa                                      csa_type;
@@ -85,9 +86,9 @@ public:
     typedef typename t_csa::alphabet_category          alphabet_category;
     typedef t_doc_offset                               doc_offset_type;
     typedef typename t_doc_offset::select_1_type       doc_offset_select_type;
+    typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
 
-    typedef map_to_dup_type<h_select_1_type> map_to_h_type;
-public:
+private:
     csa_type           m_csa;
     border_type        m_border;
     border_rank_type   m_border_rank;
@@ -104,8 +105,8 @@ public:
     topk_result_set    m_results;
 
 public:
-    template<typename t_pat_iter>
-    class top_k_iterator : public topk_iterator {
+
+    class top_k_iterator : public topk_iterator<t_token> {
     public:
         using k2treap_iterator = k2_treap_ns::top_k_iterator<t_k2treap>;
         typedef std::pair<uint64_t, double> t_doc_val;
@@ -123,7 +124,7 @@ public:
         bool               m_multi_occ = false; // true, if document has to occur more than once
     public:
         top_k_iterator() = delete;
-        top_k_iterator(const idx_nn* idx, t_pat_iter begin, t_pat_iter end,
+        top_k_iterator(const idx_nn* idx, const t_token* begin, const t_token* end,
                        bool multi_occ, bool only_match) :
             m_idx(idx), m_multi_occ(multi_occ) {
             m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size() - 1,
@@ -142,14 +143,14 @@ public:
             }
         }
 
-        topk_snippet extract_snippet(const size_t k) const override {
+        std::vector<t_token> extract_snippet(const size_t k) const override {
             size_type s = (m_doc_val.first == 0)
                           ?  0
                           : (m_idx->m_border_select(m_doc_val.first) + 1);
             size_type e = std::min(s + k,
                                    m_idx->m_border_select(m_doc_val.first + 1) - 1);
             auto res = extract(m_idx->m_csa, s, e);
-            return topk_snippet(res.begin(), res.end());
+            return {res.begin(), res.end()};
         }
 
         void next() override {
@@ -197,13 +198,12 @@ public:
         }
     };
 
-    template <typename t_pat_iter>
-    std::unique_ptr<topk_iterator> topk(size_t k, t_pat_iter begin, t_pat_iter end,
-                                        bool multi_occ = false,
-                                        bool only_match = false) {
+    std::unique_ptr<topk_iterator<t_token>> topk(
+            size_t k, const t_token* begin, const t_token* end,
+            bool multi_occ = false, bool only_match = false) override {
         switch (t_treap_algo) {
             case treap_algo::SORT_BY_DEPTH: {
-                return std::make_unique<top_k_iterator<t_pat_iter>>(
+                return std::make_unique<top_k_iterator>(
                         this, begin, end, multi_occ, only_match);
             }
             case treap_algo::SORT_BY_DOCID_NAIVE: {
@@ -232,7 +232,7 @@ public:
                     }
                     // TODO singleton results
                 }
-                return sort_topk_results(&m_results);
+                return sort_topk_results<t_token>(&m_results);
             }
             case treap_algo::SORT_BY_DOCID_SMART: {
                 m_results.clear();
@@ -250,7 +250,7 @@ public:
                     }
                     // TODO singleton results
                 }
-                return sort_topk_results(&m_results);
+                return sort_topk_results<t_token>(&m_results);
             }
         }
     }
@@ -402,6 +402,7 @@ struct map_node_to_dup_type {
 };
 
 template<typename t_csa,
+         typename t_token,
          typename t_k2treap,
          treap_algo t_treap_algo,
          typename t_rmq,
@@ -411,10 +412,10 @@ template<typename t_csa,
          typename t_h,
          typename t_h_select_0,
          typename t_h_select_1,
-         bool       offset_encoding,
+         bool     offset_encoding,
          typename t_doc_offset
          >
-void construct(idx_nn<t_csa, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
+void construct(idx_nn<t_csa, t_token, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
                t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding,
                t_doc_offset>& idx, const std::string&, sdsl::cache_config& cc,
                uint8_t num_bytes) {
@@ -423,7 +424,7 @@ void construct(idx_nn<t_csa, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_
     using t_df = DF_TYPE;
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn<t_csa, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
+    using idx_type = idx_nn<t_csa, t_token, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 

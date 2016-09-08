@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
             q_len += query.size();
             ++q_cnt;
             size_t x = 0;
-            auto res_it = idx.topk(args.k, query.begin(), query.end(),
+            auto res_it = idx.topk(args.k, query.data(), query.data() + query.size(),
                                    args.multi_occ, args.match_only);
             while (x < args.k && !res_it->done()) {
                 ++x;

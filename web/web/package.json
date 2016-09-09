@@ -1,0 +1,26 @@
+{
+  "name": "susi",
+  "version": "1.0.0",
+  "description": "susi web frontend",
+  "scripts": {
+    "build": "NODE_ENV=production webpack --progress",
+    "watch": "NODE_ENV=development webpack --watch"
+  },
+  "dependencies": {
+    "minified": "^1.0.1",
+    "react": "^15.0.2",
+    "react-addons-create-fragment": "^15.0.2",
+    "react-dom": "^15.0.2",
+    "react-paginate": "^1.0.5",
+    "react-select-box": "git+https://github.com/niklasb/react-select-box.git"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.8.0",
+    "babel-core": "^6.8.0",
+    "babel-loader": "^6.2.4",
+    "babel-preset-es2015": "^6.6.0",
+    "babel-preset-react": "^6.5.0",
+    "webpack": "^1.13.0",
+    "webpack-dev-server": "^1.14.1"
+  }
+}

@@ -1,0 +1,13 @@
+[submodule "divsufsort"]
+	path = libdivsufsort
+	url = https://github.com/niklasb/libdivsufsort
+	branch = static
+[submodule "tests/googletest"]
+	path = tests/googletest
+	url = https://github.com/google/googletest/
+[submodule "third_party/googletest"]
+	path = third_party/googletest
+	url = https://github.com/google/googletest
+[submodule "third_party/libdivsufsort"]
+	path = third_party/libdivsufsort
+	url = https://github.com/y-256/libdivsufsort

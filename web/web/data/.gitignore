@@ -1,0 +1,5 @@
+data.db
+pcap/*
+!pcap/.gitignore
+captures/*
+!captures/.gitignore

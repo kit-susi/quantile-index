@@ -256,21 +256,21 @@ class FilterableDocList extends React.Component {
   }
 }
 
-class CaptureSelectBox extends React.Component {
+class CollectionSelectBox extends React.Component {
   constructor(props, context) {
     super(props, context);
     this.state = {
-      captures: [],
-      selected_captures: [],
+      collections: [],
+      selected_collections: [],
       loading: true,
     };
   }
 
-  captureListChanged(selected_captures) {
+  collectionListChanged(selected_collections) {
     this.setState({
-      selected_captures: selected_captures
+      selected_collections: selected_collections
     });
-    this.props.onCaptureListChange(selected_captures);
+    this.props.onCollectionListChange(selected_collections);
   }
 
   componentDidMount() {
@@ -279,7 +279,7 @@ class CaptureSelectBox extends React.Component {
       if (result.success) {
         this.setState({
           loading: false,
-          captures: result.result,
+          collections: result.result,
         });
       }
     });
@@ -289,18 +289,18 @@ class CaptureSelectBox extends React.Component {
     if (this.state.loading)
       return <Spinner />;
 
-    let options = this.state.captures.map((capture) =>
+    let options = this.state.collections.map((collection) =>
       (
-        <option key={capture['id']} value={capture['id']}>
-          {capture['name']}
+        <option key={collection['id']} value={collection['id']}>
+          {collection['name']}
         </option>
       ));
     return (
       <SelectBox
-          label="Captures"
-          value={this.state.selected_captures}
+          label="Collections"
+          value={this.state.selected_collections}
           multiple={true}
-          onChange={(selection) => this.captureListChanged(selection)}
+          onChange={(selection) => this.collectionListChanged(selection)}
           >
         {options}
       </SelectBox>
@@ -319,7 +319,7 @@ class Susi extends React.Component {
     };
   }
 
-  captureListChanged(collection_ids) {
+  collectionListChanged(collection_ids) {
     this.setState({ collection_ids: collection_ids });
   }
 
@@ -327,9 +327,9 @@ class Susi extends React.Component {
     return (
       <div>
         <div style={{marginBottom: '10px'}}>
-          <b>Select Captures:</b>{' '}
-          <CaptureSelectBox
-            onCaptureListChange={(collection_ids) => this.captureListChanged(collection_ids) }/>
+          <b>Select Collections:</b>{' '}
+          <CollectionSelectBox
+            onCollectionListChange={(collection_ids) => this.collectionListChanged(collection_ids) }/>
         </div>
         <FilterableDocList
           collection_ids={this.state.collection_ids}

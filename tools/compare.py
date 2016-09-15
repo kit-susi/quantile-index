@@ -81,6 +81,8 @@ if __name__ == '__main__':
             help='Build collections in sequence, instead of parallel')
     p.add_argument('--ignore_singletons', default=False, action='store_true',
             help='Ignore single-document occurences (weight 1)')
+    p.add_argument('--query_file',
+            help='Store queries in the given file')
 
     args = p.parse_args()
     if args.clear:
@@ -116,6 +118,9 @@ if __name__ == '__main__':
     print 'Seed = %d' % args.seed
     random.seed(args.seed)
 
+    if args.q != 1:
+        print 'WARNING: No correctness will be checked. Use -q 1 if you want to do that'
+
     for _ in range(args.r):
         queries = []
         for _ in range(args.q):
@@ -123,6 +128,10 @@ if __name__ == '__main__':
         print 'Starting new round'
         last_result = None
         with tempfile.NamedTemporaryFile() as f:
+            if args.query_file:
+                print 'Writing queries to %s' % args.query_file
+                with open(args.query_file, 'w') as g:
+                    g.write('\n'.join(queries) + '\n')
             f.write('\n'.join(queries) + '\n')
             f.flush()
             for config in args.targets:

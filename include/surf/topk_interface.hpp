@@ -27,7 +27,7 @@ public:
     virtual ~topk_index() {}
     virtual std::unique_ptr<topk_iterator<t_token>> topk(
             size_t k, const t_token* begin, const t_token* end,
-            bool multi_occ = false, bool only_match = false);
+            bool multi_occ = false, bool only_match = false) = 0;
 };
 
 template <typename t_token>

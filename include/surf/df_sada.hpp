@@ -324,7 +324,7 @@ void construct(df_sada<t_bv, t_sel, t_alphabet, greedy_order>& idx, const string
     if (!cache_file_exists(surf::KEY_C, cc)) {
         auto event = memory_monitor::event("construct c");
         int_vector<> C(D.size(), 0, bits::hi(D.size()) + 1);
-        int_vector<> last_occ(doc_cnt, D.size(), bits::hi(D.size()) + 1);
+        int_vector<> last_occ(doc_cnt + 1, D.size(), bits::hi(D.size()) + 1);
         for (size_t i = 0; i < D.size(); ++i) {
             uint64_t d = D[i];
             C[i] = last_occ[d];

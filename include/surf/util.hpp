@@ -13,11 +13,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-// do we really need 3 levels here? https://gcc.gnu.org/onlinedocs/cpp/Stringification.html
-#define XSTR(s) STR(s)
-#define STR(s) #s
-#define NAME_STR XSTR(NAME)
-
 namespace surf {
 
 bool
@@ -103,7 +98,7 @@ parse_collection(std::string collection_dir)
     if (!surf::valid_collection<alphabet_tag>(collection_dir)) {
         exit(EXIT_FAILURE);
     }
-    std::string index_directory = collection_dir + ("/index_" NAME_STR);
+    std::string index_directory = collection_dir + "/index";
     surf::create_directory(index_directory);
 
     std::string results_directory = collection_dir + "/results/";

@@ -49,6 +49,7 @@ struct map_to_dup_type {
 enum class treap_algo {
     SORT_BY_DEPTH,
     SORT_BY_DOCID_NAIVE,
+    SORT_BY_DOCID_SMART_SWITCH, // enumerate all docs if interval small.
     SORT_BY_DOCID_SMART,
 };
 
@@ -234,6 +235,41 @@ public:
                 }
                 return sort_topk_results<t_token>(&m_results);
             }
+            case treap_algo::SORT_BY_DOCID_SMART_SWITCH: {
+                static const uint64_t SMALL = 1000;
+                m_results.clear();
+                uint64_t sp, ep;
+                bool valid = backward_search(m_csa, 0, m_csa.size() - 1, begin,
+                                            end, sp, ep) > 0;
+                if (valid) {
+                    if (ep - sp > SMALL) {
+                            auto h_range = m_map_to_h(sp, ep);
+                            if (!empty(h_range)) {
+                                    auto res = topk_increasing_y(m_k2treap, k,
+                                                    std::get<0>(h_range),
+                                                    std::get<1>(h_range));
+                                    for (auto it : res)
+                                        m_results.emplace_back(it.second, it.first + 1);
+
+                                                        // TODO singleton results
+                            }
+                    } else { // Naive version for small ranges.
+                            std::unordered_map<uint64_t, uint64_t> doc_counts;
+                            for (auto p = sp; p <= ep; ++p) {
+                               uint64_t text_pos = m_csa[p];
+                               auto doc_id = m_border_rank(text_pos);
+                               if (doc_counts.count(doc_id) == 0) {
+                                      doc_counts[doc_id] = 0; 
+                               }
+                               doc_counts[doc_id]++;
+                            }
+                            for (const auto& d : doc_counts)
+                                m_results.emplace_back(std::get<0>(d), std::get<1>(d));
+                   }
+                }
+                return sort_topk_results<t_token>(&m_results);
+            }
+ 
             case treap_algo::SORT_BY_DOCID_SMART: {
                 m_results.clear();
                 uint64_t sp, ep;

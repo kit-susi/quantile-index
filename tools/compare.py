@@ -49,13 +49,13 @@ def results_are_same(a, b, eps, ignore_singletons=False):
 
 def print_side_by_side(a, b):
     for (d1, s1), (d2, s2) in zip(a, b):
-        print '%10s%10s%10s%10s' % (d1, s1, d2, s2)
+        print '%10s%10s |%10s%10s' % (d1, s1, d2, s2)
     if len(b) > len(a):
         for d2, s2 in b[len(a):]:
-            print '%10s%10s%10s%10s' % ('','', d2, s2)
+            print '%10s%10s |%10s%10s' % ('','', d2, s2)
     else:
         for d1, s1 in a[len(b):]:
-            print '%10s%10s%10s%10s' % (d1, s1, '', '')
+            print '%10s%10s |%10s%10s' % (d1, s1, '', '')
 
 
 if __name__ == '__main__':

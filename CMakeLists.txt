@@ -18,12 +18,14 @@ LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/external/sdsl-lite/lib
 				 ${CMAKE_BINARY_DIR}/external/zeromq/lib
 					)
 
+# AUTOMATICALLY GENERATED CODE, DO NOT EDIT, YOUR CHANGES WILL BE UNDONE
 append_cxx_compiler_flags("-msse4.2 -std=c++14 -Wall -g" "GCC" CMAKE_CXX_FLAGS)
 append_cxx_compiler_flags("-O3 -ffast-math -funroll-loops -g" "GCC" CMAKE_CXX_FLAGS)
 append_cxx_compiler_flags("-msse4.2 -std=c++14 -g -funroll-loops -stdlib=libc++" "CLANG" CMAKE_CXX_FLAGS)
 
-#append_cxx_compiler_flags("-O0 -g2 -fsanitize=address" "GCC" CMAKE_CXX_FLAGS_DEBUG)
-#append_cxx_compiler_flags("-O0 -g2 -fsanitize=address" "CLANG" CMAKE_CXX_FLAGS_DEBUG)
+append_cxx_compiler_flags("-O1 -g2 -fsanitize=address" "GCC" CMAKE_CXX_FLAGS_DEBUG)
+append_cxx_compiler_flags("-O1 -g2 -fsanitize=address" "CLANG" CMAKE_CXX_FLAGS_DEBUG)
+# END AUTOMATICALLY GENERATED CODE
 
 
 ADD_SUBDIRECTORY(external/zeromq)

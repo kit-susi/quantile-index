@@ -1,5 +1,4 @@
-#ifndef SURF_IDX_NN_HPP
-#define SURF_IDX_NN_HPP
+#pragma once
 
 #include <algorithm>
 #include <limits>
@@ -13,6 +12,7 @@
 #include "surf/construct_col_len.hpp"
 #include "surf/df_sada.hpp"
 #include "surf/idx_d.hpp"
+#include "surf/idx_nn.hpp"
 #include "surf/rank_functions.hpp"
 #include "surf/topk_interface.hpp"
 
@@ -21,37 +21,16 @@ namespace surf {
 using range_type = sdsl::range_type;
 
 
-template<typename t_select>
-struct map_to_dup_type {
-    const t_select* m_sel;
-
-    map_to_dup_type(const t_select* select = nullptr) :
-        m_sel(select)
-    {}
-
-    range_type
-    operator()(size_t sp, size_t ep)const {
-        uint64_t y = (*m_sel)(ep);
-        if (y == 0)
-            return {0, (int_vector<>::size_type) - 1};
-        uint64_t ep_ = (y + 1) - ep - 1; // # of 0 left to y - 1
-        uint64_t sp_ = 0;          // # of 0 left to x
-        if (0 == sp) {
-        } else {
-            uint64_t x = (*m_sel)(sp);
-            sp_ = (x + 1) - sp;
-        }
-        return {sp_, ep_};
-    }
+// Treap selection algo
+enum class treap_algo {
+    NAIVE,
+    SMART,
 };
 
-/*! Class idx_nn consists of a
- *   - CSA over the collection concatenation
- *   - H
- */
 template<typename t_csa,
          typename t_token,
          typename t_k2treap,
+         treap_algo t_treap_algo = treap_algo::NAIVE,
          typename t_rmq = sdsl::rmq_succinct_sct<>,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
@@ -62,7 +41,7 @@ template<typename t_csa,
          bool     offset_encoding = true,
          typename t_doc_offset = sdsl::hyb_sd_vector<>
          >
-class idx_nn : public topk_index<t_token> {
+class idx_nn_k2_daat : public topk_index<t_token> {
 public:
     using size_type = sdsl::int_vector<>::size_type;
     typedef t_csa                                      csa_type;
@@ -104,7 +83,7 @@ public:
         typedef std::pair<uint64_t, double> t_doc_val;
         typedef std::stack<std::array<uint64_t, 2>> t_stack_array;
     private:
-        const idx_nn*      m_idx;
+        const idx_nn_k2_daat* m_idx;
         uint64_t           m_sp;  // start point of lex interval
         uint64_t           m_ep;  // end point of lex interval
         t_doc_val          m_doc_val;  // stores the current result
@@ -116,7 +95,7 @@ public:
         bool               m_multi_occ = false; // true, if document has to occur more than once
     public:
         top_k_iterator() = delete;
-        top_k_iterator(const idx_nn* idx, const t_token* begin, const t_token* end,
+        top_k_iterator(const idx_nn_k2_daat* idx, const t_token* begin, const t_token* end,
                        bool multi_occ, bool only_match) :
             m_idx(idx), m_multi_occ(multi_occ) {
             m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size() - 1,
@@ -193,8 +172,54 @@ public:
     std::unique_ptr<topk_iterator<t_token>> topk(
             size_t k, const t_token* begin, const t_token* end,
             bool multi_occ = false, bool only_match = false) override {
-        return std::make_unique<top_k_iterator>(
-                this, begin, end, multi_occ, only_match);
+        switch (t_treap_algo) {
+            case treap_algo::NAIVE: {
+                m_results.clear();
+                uint64_t sp, ep;
+                bool valid = backward_search(m_csa, 0, m_csa.size() - 1, begin,
+                                            end, sp, ep) > 0;
+                if (valid) {
+                    auto h_range = m_map_to_h(sp, ep);
+                    if (!empty(h_range)) {
+                        auto k2_iter = top_k(m_k2treap,
+                                            {std::get<0>(h_range), 0},
+                                            {std::get<1>(h_range), doc_cnt() + 1});
+                        std::unordered_set<uint64_t> docs_seen;
+                        while (k2_iter && m_results.size() < k) {
+                            auto d = imag((*k2_iter).first);
+                            auto weight = (*k2_iter).second;
+                            ++k2_iter;
+                            if (docs_seen.count(d))
+                                continue;
+                            docs_seen.insert(d);
+                            //auto x = real((*k2_iter).first);
+                            //cout << x << " " << d << " "  << weight << endl;
+                            m_results.emplace_back(d, weight + 1);
+                        }
+                    }
+                    // TODO singleton results
+                }
+                return sort_topk_results<t_token>(&m_results);
+            }
+            case treap_algo::SMART: {
+                m_results.clear();
+                uint64_t sp, ep;
+                bool valid = backward_search(m_csa, 0, m_csa.size() - 1, begin,
+                                            end, sp, ep) > 0;
+                if (valid) {
+                    auto h_range = m_map_to_h(sp, ep);
+                    if (!empty(h_range)) {
+                        auto res = topk_increasing_y(m_k2treap, k,
+                                                     std::get<0>(h_range),
+                                                     std::get<1>(h_range));
+                        for (auto it : res)
+                            m_results.emplace_back(it.second, it.first + 1);
+                    }
+                    // TODO singleton results
+                }
+                return sort_topk_results<t_token>(&m_results);
+            }
+        }
     }
 
     result search(const std::vector<query_token>& qry, size_t k,
@@ -271,9 +296,9 @@ public:
         m_map_to_h = map_to_h_type(&m_h_select_1);
         load_from_cache(m_rmqc, surf::KEY_RMQC, cc, true);
         if (offset_encoding)
-            load_from_cache(m_k2treap, surf::KEY_W_AND_P_G, cc, true);
+            load_from_cache(m_k2treap, surf::KEY_W_AND_P_G + "_d", cc, true);
         else
-            load_from_cache(m_k2treap, surf::KEY_W_AND_P, cc, true);
+            load_from_cache(m_k2treap, surf::KEY_W_AND_P + "_d", cc, true);
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
@@ -319,33 +344,10 @@ public:
     }
 };
 
-template<typename t_cst,
-         typename t_select>
-struct map_node_to_dup_type {
-    typedef typename t_cst::node_type t_node;
-    const map_to_dup_type<t_select> m_map;
-    const t_cst* m_cst;
-
-    map_node_to_dup_type(const t_select* select, const t_cst* cst):
-        m_map(select), m_cst(cst)
-    { }
-
-    range_type
-    operator()(const t_node& v)const {
-        auto left    = 1;
-        auto left_rb = m_cst->rb(m_cst->select_child(v, left));
-        return m_map(left_rb, left_rb + 1);
-    }
-    // id \in [1..n-1]
-    uint64_t id(const t_node& v)const {
-        auto left    = 1;
-        return m_cst->rb(m_cst->select_child(v, left)) + 1;
-    }
-};
-
 template<typename t_csa,
          typename t_token,
          typename t_k2treap,
+         treap_algo t_treap_algo,
          typename t_rmq,
          typename t_border,
          typename t_border_rank,
@@ -356,23 +358,23 @@ template<typename t_csa,
          bool     offset_encoding,
          typename t_doc_offset
          >
-void construct(idx_nn<t_csa, t_token, t_k2treap, t_rmq, t_border, t_border_rank,
+void construct(idx_nn_k2_daat<t_csa, t_token, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
                t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding,
                t_doc_offset>& idx, const std::string&, sdsl::cache_config& cc,
                uint8_t num_bytes) {
     using namespace sdsl;
     using namespace std;
     using t_df = DF_TYPE;
-    using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn<t_csa, t_token, t_k2treap, t_rmq, t_border, t_border_rank,
+    using idx_type = idx_nn_k2_daat<t_csa, t_token, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
-    const auto key_w_and_p = offset_encoding ?
-                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P;
+    const auto key_w_and_p = (offset_encoding ?
+                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) + "_d";
+
     const auto key_p = offset_encoding ?
                        surf::KEY_P_G : surf::KEY_P;
     const auto key_dup = offset_encoding ?
@@ -436,70 +438,7 @@ void construct(idx_nn<t_csa, t_token, t_k2treap, t_rmq, t_border, t_border_rank,
         cout << "wtd.sigma = " << wtd.sigma << endl;
         store_to_cache(wtd, surf::KEY_WTD, cc, true);
     }
-// P corresponds to up-pointers
-    cout << "...P" << endl;
-    if (!cache_file_exists(key_p, cc))
-    {
-        uint64_t max_depth = 0;
-        load_from_cache(max_depth, surf::KEY_MAXCSTDEPTH, cc);
 
-        int_vector<> dup;
-        load_from_cache(dup, key_dup, cc);
-        cout << "dup.size()=" << dup.size() << endl;
-        if (dup.size() < 20) {
-            cout << dup << endl;
-        }
-
-        std::string P_file = cache_file_name(key_p, cc);
-
-        int_vector_buffer<> P_buf(P_file, std::ios::out, 1 << 20,
-                                  sdsl::bits::hi(max_depth) + 1);
-
-        t_wtd wtd;
-        load_from_cache(wtd, surf::KEY_WTD, cc, true);
-
-        t_h hrrr;
-        load_from_cache(hrrr, surf::KEY_H, cc, true);
-        t_h_select_1 h_select_1;
-        load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
-        h_select_1.set_vector(&hrrr);
-        cst_type cst;
-        load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
-        map_node_to_dup_type<cst_type, t_h_select_1> map_node_to_dup(&h_select_1, &cst);
-
-        uint64_t doc_cnt = 1;
-        load_from_cache(doc_cnt, KEY_DOCCNT, cc);
-        typedef stack<uint32_t, vector<uint32_t>> t_stack;
-        //  HELPER to build the pointer structure
-        vector<t_stack> depths(doc_cnt, t_stack(vector<uint32_t>(1, 0))); // doc_cnt stack for last depth
-        uint64_t depth = 0;
-
-        // DFS traversal of CST
-        for (auto it = cst.begin(); it != cst.end(); ++it) {
-            auto v = *it; // get the node by dereferencing the iterator
-            if (!cst.is_leaf(v)) {
-                if (it.visit() == 1) {
-                    // node visited the first time
-                    depth = cst.depth(v);
-                    range_type r = map_node_to_dup(v);
-                    if (!empty(r)) {
-                        for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
-                            depths[dup[i]].push(depth);
-                        }
-                    }
-                } else { // node visited the second time
-                    range_type r = map_node_to_dup(v);
-                    if (!empty(r)) {
-                        for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
-                            depths[dup[i]].pop();
-                            P_buf[i] = depths[dup[i]].top();
-                        }
-                    }
-                }
-            }
-        }
-        P_buf.close();
-    }
     if (offset_encoding) {
         cout << "...DOC_OFFSET" << endl;
         if (!cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET, cc)) {
@@ -578,18 +517,18 @@ void construct(idx_nn<t_csa, t_token, t_k2treap, t_rmq, t_border, t_border_rank,
     cout << "...W_AND_P" << endl;
     if (!cache_file_exists<t_k2treap>(key_w_and_p, cc))
     {
-        int_vector_buffer<> P_buf(cache_file_name(key_p, cc));
         std::string W_and_P_file = cache_file_name(key_w_and_p, cc);
-        cout << "P_buf.size()=" << P_buf.size() << endl;
+        size_t dup_size;
         {
-            int_vector<> id_v(P_buf.size(), 0, bits::hi(P_buf.size()) + 1);
-            util::set_to_id(id_v);
-            store_to_file(id_v, W_and_P_file + ".x");
+            int_vector<> dup;
+            load_from_cache(dup, key_dup, cc);
+            store_to_file(dup, W_and_P_file + ".y");
+            dup_size = dup.size();
         }
         {
-            int_vector<> P;
-            load_from_cache(P, key_p, cc);
-            store_to_file(P, W_and_P_file + ".y");
+            int_vector<> id_v(dup_size, 0, bits::hi(dup_size) + 1);
+            util::set_to_id(id_v);
+            store_to_file(id_v, W_and_P_file + ".x");
         }
         {
             int_vector<> W;
@@ -607,5 +546,3 @@ void construct(idx_nn<t_csa, t_token, t_k2treap, t_rmq, t_border, t_border_rank,
 }
 
 } // end namespace surf
-
-#endif

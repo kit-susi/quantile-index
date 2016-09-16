@@ -48,14 +48,10 @@ def results_are_same(a, b, eps, ignore_singletons=False):
     return True
 
 def print_side_by_side(a, b):
-    for (d1, s1), (d2, s2) in zip(a, b):
-        print '%10s%10s |%10s%10s' % (d1, s1, d2, s2)
-    if len(b) > len(a):
-        for d2, s2 in b[len(a):]:
-            print '%10s%10s |%10s%10s' % ('','', d2, s2)
-    else:
-        for d1, s1 in a[len(b):]:
-            print '%10s%10s |%10s%10s' % (d1, s1, '', '')
+    for i in range(max(len(a), len(b))):
+        d1, s1 = a[i] if i < len(a) else ('','')
+        d2, s2 = b[i] if i < len(b) else ('','')
+        print '%8s%10s   |%8s%10s' % (d1, s1, d2, s2)
 
 
 if __name__ == '__main__':
@@ -64,7 +60,8 @@ if __name__ == '__main__':
             help='Configs to test')
     p.add_argument('--clear', default=False, action='store_true',
             help='Delete indexes before testing')
-    p.add_argument('-c', metavar='DIRECTORY', help='Input collection')
+    p.add_argument('-c', required=True, metavar='DIRECTORY',
+            help='Input collection')
     p.add_argument('-n', default=3, type=int, metavar='INT',
             help='ngram size for queries')
     p.add_argument('-r', default=20, type=int, metavar='INT',
@@ -77,7 +74,9 @@ if __name__ == '__main__':
             help='Epsilon for score comparisons')
     p.add_argument('--seed', default=random.randrange(1000000), type=int, metavar='INT',
             help='Random seed')
-    p.add_argument('--sequential', default=False, action='store_true',
+
+    # NOTE currently parallel construction does not work
+    p.add_argument('--sequential', default=True, action='store_true',
             help='Build collections in sequence, instead of parallel')
     p.add_argument('--ignore_singletons', default=False, action='store_true',
             help='Ignore single-document occurences (weight 1)')

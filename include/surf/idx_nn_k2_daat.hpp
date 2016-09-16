@@ -7,12 +7,12 @@
 #include <set>
 #include <unordered_set>
 
-#include "sdsl/k2_treap.hpp"
 #include "sdsl/suffix_trees.hpp"
 #include "surf/construct_col_len.hpp"
 #include "surf/df_sada.hpp"
 #include "surf/idx_d.hpp"
 #include "surf/idx_nn.hpp"
+#include "surf/k2_treap_algos.hpp"
 #include "surf/rank_functions.hpp"
 #include "surf/topk_interface.hpp"
 
@@ -210,7 +210,7 @@ public:
                 if (valid) {
                     auto h_range = m_map_to_h(sp, ep);
                     if (!empty(h_range)) {
-                        auto res = k2_treap_ns::topk_increasing_y(
+                        auto res = k2_treap_algos::topk_increasing_y(
                                 m_k2treap, k,
                                 std::get<0>(h_range),
                                 std::get<1>(h_range));

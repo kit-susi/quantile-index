@@ -12,9 +12,8 @@
 #include "surf/construct_col_len.hpp"
 #include "surf/df_sada.hpp"
 #include "surf/idx_d.hpp"
-#include "surf/idx_nn.hpp"
+#include "surf/k3_treap_algos.hpp"
 #include "surf/rank_functions.hpp"
-#include "surf/topk_interface.hpp"
 
 namespace surf {
 
@@ -187,7 +186,7 @@ public:
                     auto h_range = m_map_to_h(sp, ep);
                     if (!empty(h_range)) {
                         uint64_t depth = end - begin;
-                        auto res = k3_treap_ns::topk_increasing_z(
+                        auto res = k3_treap_algos::topk_increasing_z(
                                 m_k2treap, k,
                                 std::get<0>(h_range), std::get<1>(h_range),
                                 0, depth - 1);

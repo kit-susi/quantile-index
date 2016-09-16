@@ -1,7 +1,9 @@
 #include "sdsl/config.hpp"
 #include "surf/util.hpp"
 #include "sdsl/int_vector_buffer.hpp"
+#include <chrono>
 #include <random>
+using namespace std;
 
 //const size_t buf_size = 1024*1024;
 //char buffer[buf_size];
@@ -10,6 +12,7 @@ typedef struct cmdargs {
     std::string collection_dir;
     size_t pat_len;
     size_t pat_cnt;
+    size_t seed;
 } cmdargs_t;
 
 void
@@ -20,6 +23,7 @@ print_usage(char* program)
     fprintf(stdout,"  -c <collection directory>  : the directory the collection is stored.\n");
     fprintf(stdout,"  -m <pattern length>        : the  pattern length.\n");
     fprintf(stdout,"  -x <number of patterns>    : generate x patterns.\n");
+    fprintf(stdout,"  -s <random seed>\n");
 };
 
 cmdargs_t
@@ -30,6 +34,11 @@ parse_args(int argc,char* const argv[])
     args.collection_dir = "";
     args.pat_len  = 0;
     args.pat_cnt  = 0;
+
+    auto now = std::chrono::high_resolution_clock::now();
+    srand(chrono::duration_cast<chrono::microseconds>(now.time_since_epoch()).count());
+    args.seed = rand();
+
     while ((op=getopt(argc,argv,"c:m:x:")) != -1) {
         switch (op) {
             case 'c':
@@ -40,6 +49,9 @@ parse_args(int argc,char* const argv[])
                 break;
             case 'x':
                 args.pat_cnt = std::stoull(std::string(optarg));
+                break;
+            case 's':
+                args.seed = std::stoull(std::string(optarg));
                 break;
             case '?':
             default:
@@ -70,7 +82,7 @@ int main(int argc,char* const argv[])
         return 1;
     }
 
-    std::mt19937_64 rng;
+    std::mt19937_64 rng(args.seed);
     std::uniform_int_distribution<uint64_t> distribution(0, text_buf.size()-args.pat_len);
     auto dice = bind(distribution, rng);
 

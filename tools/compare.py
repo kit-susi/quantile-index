@@ -56,13 +56,14 @@ def print_side_by_side(a, b):
         d2, s2 = b[i] if i < len(b) else ('','')
         print '%8s%10s   |%8s%10s' % (d1, s1, d2, s2)
 
-def gen_queries(args):
+def gen_queries(args, seed):
     suffix = '_int' if get_collection_type(args.collection) == 'int' else ''
     return check_output(['build/gen_patterns' + suffix,
         '-c', args.collection,
         '-m', str(args.n),
-        '-x', str(args.q)
-        ])
+        '-x', str(args.q),
+        '-s', str(seed),
+        ] + (['-o', str(args.min_sampling)] if args.min_sampling else []))
 
 
 if __name__ == '__main__':
@@ -83,6 +84,8 @@ if __name__ == '__main__':
             help='Retrieve top k documents')
     p.add_argument('-e', default=1e-6, type=float, metavar='FLOAT',
             help='Epsilon for score comparisons')
+    p.add_argument('-o', dest='min_sampling', default=0, type=int, metavar='INT',
+            help='Only use ngrams that occur at least once every X samples')
     p.add_argument('--seed', default=random.randrange(1000000), type=int, metavar='INT',
             help='Random seed')
     # NOTE currently parallel construction does not work
@@ -122,14 +125,15 @@ if __name__ == '__main__':
     for t in threads:
         t.join()
 
-    print 'Seed = %d' % args.seed
-    random.seed(args.seed)
-
     if args.q != 1:
         print 'WARNING: No correctness will be checked. Use -q 1 if you want to do that'
 
+    seed = args.seed
     for _ in range(args.r):
-        queries = gen_queries(args)
+        print 'Seed = %d' % seed
+        random.seed(seed)
+        print 'Generating queries...'
+        queries = gen_queries(args, seed=seed)
 
         print 'Starting new round'
         last_result = None
@@ -178,5 +182,3 @@ if __name__ == '__main__':
                     print '      Time per query (avg / median / max / sigma): %d %.2f %d %.2f' % (
                             avg, median, maxi, sigma)
         seed = random.randrange(1000000)
-        print "New seed = %d" % seed
-        random.seed(seed)

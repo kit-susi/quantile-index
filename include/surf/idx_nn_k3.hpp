@@ -108,7 +108,7 @@ public:
                     m_k2_iter = k3_treap_ns::top_k(m_idx->m_k2treap,
                     {std::get<0>(h_range), 0, 0},
                     {std::get<1>(h_range), depth - 1,
-                     std::numeric_limits<uint64_t>::max()});
+                     10000});
                 }
                 m_states.push({m_sp, m_ep});
                 this->next();
@@ -275,9 +275,9 @@ public:
         m_map_to_h = map_to_h_type(&m_h_select_1);
         load_from_cache(m_rmqc, surf::KEY_RMQC, cc, true);
         if (offset_encoding)
-            load_from_cache(m_k2treap, surf::KEY_W_AND_P_G + "_d", cc, true);
+            load_from_cache(m_k2treap, surf::KEY_W_AND_P_G + "_k3", cc, true);
         else
-            load_from_cache(m_k2treap, surf::KEY_W_AND_P + "_d", cc, true);
+            load_from_cache(m_k2treap, surf::KEY_W_AND_P + "_k3", cc, true);
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,

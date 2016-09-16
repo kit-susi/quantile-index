@@ -3,6 +3,7 @@
 
 #include "surf/config.hpp"
 #include "sdsl/io.hpp"
+#include "sdsl/int_vector.hpp"
 
 #include <string>
 #include <unistd.h>
@@ -138,6 +139,18 @@ parse_collection(std::string collection_dir)
     }
 
     return config;
+}
+
+// Remove all elements from array marked with zero in add_to_output.
+void filter(sdsl::int_vector<>& array, const sdsl::bit_vector& add_to_output) {
+    // Count output size.
+    uint64_t j = 0;
+    for (uint64_t i = 0; i < array.size(); ++i) {
+        if (add_to_output[i] == 1) {
+            array[j++] = array[i];
+        }
+    }
+    array.resize(j);
 }
 
 // select a type based on the value of a type-level boolean

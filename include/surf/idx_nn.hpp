@@ -61,6 +61,7 @@ template<typename t_csa,
          typename t_token,
          typename t_k2treap,
          treap_algo t_treap_algo = treap_algo::SORT_BY_DEPTH,
+         int max_query_length = 0,
          typename t_rmq = sdsl::rmq_succinct_sct<>,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
@@ -88,6 +89,7 @@ public:
     typedef t_doc_offset                               doc_offset_type;
     typedef typename t_doc_offset::select_1_type       doc_offset_select_type;
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
+
 
 private:
     csa_type           m_csa;
@@ -364,10 +366,10 @@ public:
         m_h_select_1.set_vector(&m_h);
         m_map_to_h = map_to_h_type(&m_h_select_1);
         load_from_cache(m_rmqc, surf::KEY_RMQC, cc, true);
-        if (offset_encoding)
-            load_from_cache(m_k2treap, surf::KEY_W_AND_P_G, cc, true);
-        else
-            load_from_cache(m_k2treap, surf::KEY_W_AND_P, cc, true);
+        const auto key_w_and_p = (offset_encoding ?
+                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) + 
+                             std::to_string(max_query_length);
+        load_from_cache(m_k2treap, key_w_and_p, cc, true);
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
@@ -441,6 +443,7 @@ template<typename t_csa,
          typename t_token,
          typename t_k2treap,
          treap_algo t_treap_algo,
+         int max_query_length,
          typename t_rmq,
          typename t_border,
          typename t_border_rank,
@@ -451,7 +454,7 @@ template<typename t_csa,
          bool     offset_encoding,
          typename t_doc_offset
          >
-void construct(idx_nn<t_csa, t_token, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
+void construct(idx_nn<t_csa, t_token, t_k2treap, t_treap_algo, max_query_length, t_rmq, t_border, t_border_rank,
                t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding,
                t_doc_offset>& idx, const std::string&, sdsl::cache_config& cc,
                uint8_t num_bytes) {
@@ -460,14 +463,15 @@ void construct(idx_nn<t_csa, t_token, t_k2treap, t_treap_algo, t_rmq, t_border, 
     using t_df = DF_TYPE;
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn<t_csa, t_token, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
+    using idx_type = idx_nn<t_csa, t_token, t_k2treap, t_treap_algo, max_query_length, t_rmq, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
-    const auto key_w_and_p = offset_encoding ?
-                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P;
+    const auto key_w_and_p = (offset_encoding ?
+                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) + 
+                             std::to_string(max_query_length);
     const auto key_p = offset_encoding ?
                        surf::KEY_P_G : surf::KEY_P;
     const auto key_dup = offset_encoding ?
@@ -681,19 +685,35 @@ void construct(idx_nn<t_csa, t_token, t_k2treap, t_treap_algo, t_rmq, t_border, 
         int_vector_buffer<> P_buf(cache_file_name(key_p, cc));
         std::string W_and_P_file = cache_file_name(key_w_and_p, cc);
         cout << "P_buf.size()=" << P_buf.size() << endl;
+        // Build filter bitvector.
+        bit_vector add_to_grid_bv(P_buf.size(), 1);
+        if (max_query_length > 0) {
+            int_vector<> P;
+            load_from_cache(P, key_p, cc);
+            uint64_t removed_count = 0;
+            for (size_t i = 0; i < P.size(); ++i)
+                    if (P[i] > max_query_length) {
+                            add_to_grid_bv[i] = 0;
+                            removed_count++;
+                    }
+            cout << "Removed "<<removed_count<<" from "<<P.size()<<" grid points\n";
+        }
         {
             int_vector<> id_v(P_buf.size(), 0, bits::hi(P_buf.size()) + 1);
             util::set_to_id(id_v);
+            filter(id_v, add_to_grid_bv);
             store_to_file(id_v, W_and_P_file + ".x");
         }
         {
             int_vector<> P;
             load_from_cache(P, key_p, cc);
+            filter(P, add_to_grid_bv);
             store_to_file(P, W_and_P_file + ".y");
         }
         {
             int_vector<> W;
             load_from_cache(W, key_weights, cc);
+            filter(W, add_to_grid_bv);
             store_to_file(W, W_and_P_file + ".w");
         }
         cout << "build k2treap" << endl;

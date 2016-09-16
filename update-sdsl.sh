@@ -1,6 +1,6 @@
 #!/bin/bash
 cd external/sdsl-lite && \
-git checkout master && \
+git checkout k2_algos && \
 git pull && \
 cd ../.. && \
 git add external/sdsl-lite && \

@@ -1,14 +1,16 @@
 #!/bin/bash
 #
-# ./sdsl.sh pull [branch]
-# Pull from the given branch in git@github.com:niklasb/susi-sdsl-lite.git
-# into subtree /external/sdsl-lite/
-# (branch defaults to master)
+# Usage:
 #
-# ./sdsl.sh push [branch]
-# Push changes in subtree /external/sdsl-lite/ to
-# the given branch in git@github.com:niklasb/susi-sdsl-lite.git
-# (branch defaults to master)
+# scripts/sdsl.sh pull [branch]
+#   Pull from the given branch in git@github.com:niklasb/susi-sdsl-lite.git
+#   into subtree /external/sdsl-lite/
+#   (branch defaults to master)
+#
+# scripts/sdsl.sh push [branch]
+#   Push changes in subtree /external/sdsl-lite/ to
+#   the given branch in git@github.com:niklasb/susi-sdsl-lite.git
+#   (branch defaults to master)
 
 set -e
 if [[ ( "$1" != "pull" && "$1" != "push" ) || $# > 2 ]]; then

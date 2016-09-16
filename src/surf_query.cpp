@@ -235,7 +235,7 @@ int main(int argc, char* argv[])
         double qtime_sigma = 0;
         for (uint64_t t : timings)
             qtime_sigma += pow(t - qtime_avg, 2);
-        qtime_sigma = sqrt(qtime_sigma);
+        qtime_sigma = sqrt(qtime_sigma / timings.size());
 
         cout << setprecision(5) << fixed;
         cout << "# query_len = " << q_len / q_cnt << endl;

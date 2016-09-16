@@ -26,7 +26,7 @@
 
 ## Keeping `external/sdsl-lite/` up to date
 
-Use the shell script `./sdsl.sh`. We are mirroring
+Use the shell script `scripts/sdsl.sh`. We are mirroring
 git@github.com:niklasb/susi-sdsl-lite.git (branch master) in
 subtree `external/sdsl-lite/`. See
 [https://git-scm.com/book/en/v1/Git-Tools-Subtree-Merging](subtree merging)

@@ -1,18 +1,13 @@
 #!/usr/bin/env python2
+from subprocess import check_output
 import argparse
+import os
 import random
 import re
 import subprocess
 import tempfile
 import threading
 import time
-
-def get_ngram(text, n):
-    while True:
-        i = random.randrange(len(text) - n)
-        ngram = text[i:i+n]
-        if '\1' not in ngram and '\n' not in ngram:
-            return ngram
 
 def is_sorted(lst, eps):
     """ Checks of lst of floats is sorted. """
@@ -47,11 +42,28 @@ def results_are_same(a, b, eps, ignore_singletons=False):
             return False
     return True
 
+def get_collection_type(directory):
+    if os.path.exists('%s/text_int_SURF.sdsl' % directory):
+        return 'int'
+    elif os.path.exists('%s/text_SURF.sdsl' % directory):
+        return 'text'
+    else:
+        raise Exception("Not a susie collection: %d" % directory)
+
 def print_side_by_side(a, b):
     for i in range(max(len(a), len(b))):
         d1, s1 = a[i] if i < len(a) else ('','')
         d2, s2 = b[i] if i < len(b) else ('','')
         print '%8s%10s   |%8s%10s' % (d1, s1, d2, s2)
+
+def gen_queries(args):
+    suffix = '_int' if get_collection_type(args.collection) == 'int' else ''
+    return check_output(['build/gen_patterns' + suffix,
+        '-c', args.collection,
+        '-m', str(args.n),
+        '-x', str(args.q)
+        ])
+
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
@@ -59,7 +71,7 @@ if __name__ == '__main__':
             help='Configs to test')
     p.add_argument('--clear', default=False, action='store_true',
             help='Delete indexes before testing')
-    p.add_argument('-c', required=True, metavar='DIRECTORY',
+    p.add_argument('-c', dest='collection', required=True, metavar='DIRECTORY',
             help='Input collection')
     p.add_argument('-n', default=3, type=int, metavar='INT',
             help='ngram size for queries')
@@ -82,9 +94,11 @@ if __name__ == '__main__':
             help='Store queries in the given file')
 
     args = p.parse_args()
+    collection_type = get_collection_type(args.collection)
+
     if args.clear:
         print 'Deleting old indexes'
-        subprocess.check_call(['rm', '-r', args.c + '/index'])
+        subprocess.check_call(['rm', '-r', args.collection + '/index'])
 
     threads = []
     for config in args.targets:
@@ -92,10 +106,10 @@ if __name__ == '__main__':
             print 'Building index for config %s' % config
             cmd = [
                 'build/surf_index-%s' % config,
-                '-c', args.c
+                '-c', args.collection
             ]
             print '    Running command: %s' % ' '.join(cmd)
-            subprocess.check_output(cmd)
+            check_output(cmd)
 
         t = threading.Thread(target=build, args=(config,))
         t.start()
@@ -108,10 +122,6 @@ if __name__ == '__main__':
     for t in threads:
         t.join()
 
-    with open(args.c + '/text_SURF.sdsl') as f:
-        # strip 8-byte header
-        text = f.read()[8:]
-
     print 'Seed = %d' % args.seed
     random.seed(args.seed)
 
@@ -119,30 +129,29 @@ if __name__ == '__main__':
         print 'WARNING: No correctness will be checked. Use -q 1 if you want to do that'
 
     for _ in range(args.r):
-        queries = []
-        for _ in range(args.q):
-            queries.append(get_ngram(text, args.n))
+        queries = gen_queries(args)
+
         print 'Starting new round'
         last_result = None
         with tempfile.NamedTemporaryFile() as f:
             if args.query_file:
                 print 'Writing queries to %s' % args.query_file
                 with open(args.query_file, 'w') as g:
-                    g.write('\n'.join(queries) + '\n')
-            f.write('\n'.join(queries) + '\n')
+                    g.write(queries)
+            f.write(queries)
             f.flush()
             for config in args.targets:
                 print '    Running with %s' % config
                 cmd = [
                     'build/surf_query-%s' % config,
-                    '-c', args.c,
+                    '-c', args.collection,
                     '-q', f.name,
                     '-k', str(args.k),
                 ]
                 if args.q == 1:
                     cmd += ['-v']
 
-                out = subprocess.check_output(cmd)
+                out = check_output(cmd)
                 if args.q == 1:
                     # check correctness only for q = 1
                     lines = out.strip().splitlines()

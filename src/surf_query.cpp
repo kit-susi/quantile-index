@@ -230,14 +230,20 @@ int main(int argc, char* argv[])
         sort(timings.begin(), timings.end());
         uint64_t qtime_median = timings[timings.size() / 2];
         uint64_t qtime_sum = accumulate(timings.begin(), timings.end(), 0);
-        uint64_t qtime_avg = qtime_sum / timings.size();
+        double qtime_avg = 1. * qtime_sum / timings.size();
         uint64_t qtime_max = *max_element(timings.begin(), timings.end());
+        double qtime_sigma = 0;
+        for (uint64_t t : timings)
+            qtime_sigma += pow(t - qtime_avg, 2);
+        qtime_sigma = sqrt(qtime_sigma);
 
+        cout << setprecision(5) << fixed;
         cout << "# query_len = " << q_len / q_cnt << endl;
         cout << "# queries = " << q_cnt << endl;
         cout << "# time_per_query_avg = " << qtime_avg << endl;
         cout << "# time_per_query_median = " << qtime_median << endl;
         cout << "# time_per_query_max = " << qtime_max << endl;
+        cout << "# time_per_query_sigma = " << qtime_sigma << endl;
         auto doc_time = sum == 0 ? 0.0 : ((double)qtime_sum) / (sum * q_cnt);
         cout << "# time_per_doc = " << doc_time << endl;
         cout << "# check_sum = " << sum << endl;

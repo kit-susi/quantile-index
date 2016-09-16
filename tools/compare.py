@@ -53,7 +53,6 @@ def print_side_by_side(a, b):
         d2, s2 = b[i] if i < len(b) else ('','')
         print '%8s%10s   |%8s%10s' % (d1, s1, d2, s2)
 
-
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('targets', metavar='CONFIG', nargs='+',
@@ -74,7 +73,6 @@ if __name__ == '__main__':
             help='Epsilon for score comparisons')
     p.add_argument('--seed', default=random.randrange(1000000), type=int, metavar='INT',
             help='Random seed')
-
     # NOTE currently parallel construction does not work
     p.add_argument('--sequential', default=True, action='store_true',
             help='Build collections in sequence, instead of parallel')

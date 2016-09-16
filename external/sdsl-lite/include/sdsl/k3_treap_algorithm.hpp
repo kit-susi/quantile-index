@@ -24,7 +24,6 @@
 #include "sdsl/vectors.hpp"
 #include "sdsl/bits.hpp"
 #include "sdsl/k3_treap_helper.hpp"
-#include "sdsl/topk_heap.hpp"
 #include <tuple>
 #include <algorithm>
 #include <iterator>

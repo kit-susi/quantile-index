@@ -122,8 +122,8 @@ public:
 
         std::string DUP_file = cache_file_name(
                                    greedy_order ? surf::KEY_DUP_G : surf::KEY_DUP, cc);
-        const auto key_weights = greedy_order ?
-                             surf::KEY_WEIGHTS_G : surf::KEY_WEIGHTS;
+        const auto key_weights = cache_file_name(
+                        (greedy_order ?  surf::KEY_WEIGHTS_G : surf::KEY_WEIGHTS), cc);
 
         int_vector_buffer<> dup_buf(DUP_file, std::ios::out, 1 << 20, sdsl::bits::hi(doc_cnt) + 1);
         int_vector_buffer<> weight_buf(key_weights, std::ios::out, 1 << 20, sdsl::bits::hi(max_len) + 1);

@@ -207,7 +207,6 @@ struct node_type {
     }
 };
 
-} // end namepsace k2_treap_ns
-
+} // end namespace k2_treap_ns
 } // end nomespace sdsl
 #endif

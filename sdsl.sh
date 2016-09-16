@@ -17,7 +17,7 @@ if [[ ( "$1" != "pull" && "$1" != "push" ) || $# > 2 ]]; then
 fi
 
 action="$1"
-upstream_branch="${2:=master}"
+upstream_branch="${2:-master}"
 
 if [ ! -d external/sdsl-lite ]; then
   echo >&2 "external/sdsl-lite does not exist"
@@ -47,17 +47,17 @@ if [[ "$action" == "pull" ]]; then
   set -x
   git merge -s subtree --squash --no-commit --allow-unrelated-histories \
     "sdsl/$upstream_branch"
-  git commit -m 'Merge upstream sdsl-lite'
+  git commit -m 'Merge upstream sdsl-lite' || true
   set +x
 elif [[ "$action" == "push" ]]; then
   # Mirror sdsl/$upstream into tmp-sdsl-upstream branch, merge subtree into
   # it, then push it to upstream branch
   set -x
-  git checkout -b tmp-sdsl-upstream "sdsl/$upstream_branch"
+  git checkout -B tmp-sdsl-upstream "sdsl/$upstream_branch"
   git merge -s subtree --squash --no-commit --allow-unrelated-histories \
     "$cur_branch"
-  git commit -m 'Merge sdsl-lite subtree from susi into upstream'
-  git push sdsl tmp-sdsl-upstream:"$upstream_branch"
+  (git commit -m 'Merge sdsl-lite subtree from susi into upstream' &&
+    git push sdsl tmp-sdsl-upstream:"$upstream_branch" || true)
   git checkout "$cur_branch"
   git branch -D tmp-sdsl-upstream
   set +x

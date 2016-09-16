@@ -176,27 +176,27 @@ int main(int argc, char* argv[])
 
     using timer = chrono::high_resolution_clock;
     auto start = timer::now();
-    vector < decltype(timer::now() - start) > timings;
+
+    vector<uint64_t> timings;  // microseconds
+
     size_t sum = 0;
     size_t sum_fdt = 0;
-    bool tle = false; // flag: time limit exceeded
     size_t sum_chars_extracted = 0;
     size_t q_len = 0;
     size_t q_cnt = 0;
     for (int run = 0; run < 1; ++run) {
         sum = 0;
         sum_fdt = 0;
-        tle = false;
         sum_chars_extracted = 0;
         q_len = 0;
         q_cnt = 0;
         start = timer::now(); // Reset timer.
-        for (size_t i = 0; !tle && i < queries.size(); ++i) {
-            auto q_start = timer::now();
+        for (size_t i = 0; i < queries.size(); ++i) {
             auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
             q_len += query.size();
             ++q_cnt;
             size_t x = 0;
+            auto start = timer::now();
             auto res_it = idx.topk(args.k, query.data(), query.data() + query.size(),
                                    args.multi_occ, args.match_only);
             while (x < args.k && !res_it->done()) {
@@ -219,24 +219,26 @@ int main(int argc, char* argv[])
                     res_it->next();
             }
             sum += x;
-            auto q_time = timer::now() - q_start;
-            // single query should not take more then 5 seconds
-            if (chrono::duration_cast<chrono::seconds>(q_time).count() > 5) {
-                tle = true;
-            }
+            uint64_t msecs = chrono::duration_cast<chrono::microseconds>(
+                    timer::now() - start).count();
+            timings.push_back(msecs);
         }
-        auto stop = timer::now();
-        timings.push_back(stop - start);
     }
+
+
     if (!args.verbose) {
-        cout << "# TLE = " << tle << endl;
+        sort(timings.begin(), timings.end());
+        uint64_t qtime_median = timings[timings.size() / 2];
+        uint64_t qtime_sum = accumulate(timings.begin(), timings.end(), 0);
+        uint64_t qtime_avg = qtime_sum / timings.size();
+        uint64_t qtime_max = *max_element(timings.begin(), timings.end());
+
         cout << "# query_len = " << q_len / q_cnt << endl;
         cout << "# queries = " << q_cnt << endl;
-        sort(timings.begin(), timings.end());
-        auto exec_time = chrono::duration_cast<chrono::microseconds>(
-                             timings[timings.size() / 2]).count();
-        cout << "# time_per_query = " << exec_time / q_cnt << endl;
-        auto doc_time = sum == 0 ? 0.0 : ((double)exec_time) / (sum * q_cnt);
+        cout << "# time_per_query_avg = " << qtime_avg << endl;
+        cout << "# time_per_query_median = " << qtime_median << endl;
+        cout << "# time_per_query_max = " << qtime_max << endl;
+        auto doc_time = sum == 0 ? 0.0 : ((double)qtime_sum) / (sum * q_cnt);
         cout << "# time_per_doc = " << doc_time << endl;
         cout << "# check_sum = " << sum << endl;
         cout << "# check_sum_fdt = " << sum_fdt << endl;

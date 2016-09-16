@@ -162,8 +162,10 @@ if __name__ == '__main__':
                     last_result = result
                 else:
                     # otherwise print time
-                    time_per_query = int(out.split('time_per_query = ')[1].split()[0])
-                    print '      Time per query: %d' % time_per_query
+                    avg = int(out.split('time_per_query_avg = ')[1].split()[0])
+                    median = int(out.split('time_per_query_median = ')[1].split()[0])
+                    maxi = int(out.split('time_per_query_max = ')[1].split()[0])
+                    print '      Time per query (avg / median / max): %d %d %d' % (avg, median, maxi)
         seed = random.randrange(1000000)
         print "New seed = %d" % seed
         random.seed(seed)

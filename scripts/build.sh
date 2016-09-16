@@ -28,4 +28,4 @@ for config in $@; do
 done
 
 set -x
-eval make -j $targets
+make -j $targets

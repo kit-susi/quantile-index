@@ -50,7 +50,6 @@ struct map_to_dup_type {
  *   - H
  */
 template<typename t_csa,
-         typename t_token,
          typename t_k2treap,
          int max_query_length = 0,
          typename t_rmq = sdsl::rmq_succinct_sct<>,
@@ -63,7 +62,8 @@ template<typename t_csa,
          bool     offset_encoding = true,
          typename t_doc_offset = sdsl::hyb_sd_vector<>
          >
-class idx_nn : public topk_index<t_token> {
+class idx_nn
+    : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
 public:
     using size_type = sdsl::int_vector<>::size_type;
     typedef t_csa                                      csa_type;
@@ -82,6 +82,8 @@ public:
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
 
 private:
+    using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
+
     csa_type           m_csa;
     border_type        m_border;
     border_rank_type   m_border_rank;
@@ -97,9 +99,7 @@ private:
     map_to_h_type      m_map_to_h;
     topk_result_set    m_results;
 
-public:
-
-    class top_k_iterator : public topk_iterator<t_token> {
+    class top_k_iterator : public topk_interface::iter {
     public:
         using k2treap_iterator = k2_treap_ns::top_k_iterator<t_k2treap>;
         typedef std::pair<uint64_t, double> t_doc_val;
@@ -117,7 +117,9 @@ public:
         bool               m_multi_occ = false; // true, if document has to occur more than once
     public:
         top_k_iterator() = delete;
-        top_k_iterator(const idx_nn* idx, const t_token* begin, const t_token* end,
+        top_k_iterator(const idx_nn* idx,
+                       const typename topk_interface::token_type* begin,
+                       const typename topk_interface::token_type* end,
                        bool multi_occ, bool only_match) :
             m_idx(idx), m_multi_occ(multi_occ) {
             m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size() - 1,
@@ -136,7 +138,8 @@ public:
             }
         }
 
-        std::vector<t_token> extract_snippet(const size_t k) const override {
+        typename topk_interface::snippet_type extract_snippet(const size_t k)
+                const override {
             size_type s = (m_doc_val.first == 0)
                           ?  0
                           : (m_idx->m_border_select(m_doc_val.first) + 1);
@@ -191,8 +194,12 @@ public:
         }
     };
 
-    std::unique_ptr<topk_iterator<t_token>> topk(
-            size_t k, const t_token* begin, const t_token* end,
+public:
+
+    std::unique_ptr<typename topk_interface::iter> topk(
+            size_t k,
+            const typename topk_interface::token_type* begin,
+            const typename topk_interface::token_type* end,
             bool multi_occ = false, bool only_match = false) override {
         return std::make_unique<top_k_iterator>(
                 this, begin, end, multi_occ, only_match);
@@ -272,7 +279,7 @@ public:
         m_map_to_h = map_to_h_type(&m_h_select_1);
         load_from_cache(m_rmqc, surf::KEY_RMQC, cc, true);
         const auto key_w_and_p = (offset_encoding ?
-                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) + 
+                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
                              std::to_string(max_query_length);
         load_from_cache(m_k2treap, key_w_and_p, cc, true);
     }
@@ -345,7 +352,6 @@ struct map_node_to_dup_type {
 };
 
 template<typename t_csa,
-         typename t_token,
          typename t_k2treap,
          int max_query_length,
          typename t_rmq,
@@ -358,7 +364,7 @@ template<typename t_csa,
          bool     offset_encoding,
          typename t_doc_offset
          >
-void construct(idx_nn<t_csa, t_token, t_k2treap, max_query_length, t_rmq, t_border, t_border_rank,
+void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_border_rank,
                t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding,
                t_doc_offset>& idx, const std::string&, sdsl::cache_config& cc,
                uint8_t num_bytes) {
@@ -367,14 +373,14 @@ void construct(idx_nn<t_csa, t_token, t_k2treap, max_query_length, t_rmq, t_bord
     using t_df = DF_TYPE;
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn<t_csa, t_token, t_k2treap, max_query_length, t_rmq, t_border, t_border_rank,
+    using idx_type = idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
     const auto key_w_and_p = (offset_encoding ?
-                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) + 
+                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
                              std::to_string(max_query_length);
     const auto key_p = offset_encoding ?
                        surf::KEY_P_G : surf::KEY_P;

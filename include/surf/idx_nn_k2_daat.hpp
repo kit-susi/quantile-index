@@ -28,7 +28,6 @@ enum class treap_algo {
 };
 
 template<typename t_csa,
-         typename t_token,
          typename t_k2treap,
          treap_algo t_treap_algo = treap_algo::NAIVE,
          int max_query_length = 0,
@@ -42,7 +41,8 @@ template<typename t_csa,
          bool     offset_encoding = true,
          typename t_doc_offset = sdsl::hyb_sd_vector<>
          >
-class idx_nn_k2_daat : public topk_index<t_token> {
+class idx_nn_k2_daat
+    : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
 public:
     using size_type = sdsl::int_vector<>::size_type;
     typedef t_csa                                      csa_type;
@@ -61,6 +61,8 @@ public:
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
 
 private:
+    using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
+
     csa_type           m_csa;
     border_type        m_border;
     border_rank_type   m_border_rank;
@@ -76,9 +78,7 @@ private:
     map_to_h_type      m_map_to_h;
     topk_result_set    m_results;
 
-public:
-
-    class top_k_iterator : public topk_iterator<t_token> {
+    class top_k_iterator : public topk_interface::iter {
     public:
         using k2treap_iterator = k2_treap_ns::top_k_iterator<t_k2treap>;
         typedef std::pair<uint64_t, double> t_doc_val;
@@ -96,7 +96,9 @@ public:
         bool               m_multi_occ = false; // true, if document has to occur more than once
     public:
         top_k_iterator() = delete;
-        top_k_iterator(const idx_nn_k2_daat* idx, const t_token* begin, const t_token* end,
+        top_k_iterator(const idx_nn_k2_daat* idx,
+                       const typename topk_interface::token_type* begin,
+                       const typename topk_interface::token_type* end,
                        bool multi_occ, bool only_match) :
             m_idx(idx), m_multi_occ(multi_occ) {
             m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size() - 1,
@@ -115,7 +117,8 @@ public:
             }
         }
 
-        std::vector<t_token> extract_snippet(const size_t k) const override {
+        typename topk_interface::snippet_type extract_snippet(const size_t k)
+                const override {
             size_type s = (m_doc_val.first == 0)
                           ?  0
                           : (m_idx->m_border_select(m_doc_val.first) + 1);
@@ -170,8 +173,12 @@ public:
         }
     };
 
-    std::unique_ptr<topk_iterator<t_token>> topk(
-            size_t k, const t_token* begin, const t_token* end,
+public:
+
+    std::unique_ptr<typename topk_interface::iter> topk(
+            size_t k,
+            const typename topk_interface::token_type* begin,
+            const typename topk_interface::token_type* end,
             bool multi_occ = false, bool only_match = false) override {
         switch (t_treap_algo) {
             case treap_algo::NAIVE: {
@@ -200,7 +207,7 @@ public:
                     }
                     // TODO singleton results
                 }
-                return sort_topk_results<t_token>(&m_results);
+                return sort_topk_results<typename topk_interface::token_type>(&m_results);
             }
             case treap_algo::SMART: {
                 m_results.clear();
@@ -219,7 +226,7 @@ public:
                     }
                     // TODO singleton results
                 }
-                return sort_topk_results<t_token>(&m_results);
+                return sort_topk_results<typename topk_interface::token_type>(&m_results);
             }
         }
     }
@@ -347,7 +354,6 @@ public:
 };
 
 template<typename t_csa,
-         typename t_token,
          typename t_k2treap,
          treap_algo t_treap_algo,
          int max_query_length,
@@ -361,7 +367,7 @@ template<typename t_csa,
          bool     offset_encoding,
          typename t_doc_offset
          >
-void construct(idx_nn_k2_daat<t_csa, t_token, t_k2treap, t_treap_algo, max_query_length, t_rmq, t_border, t_border_rank,
+void construct(idx_nn_k2_daat<t_csa, t_k2treap, t_treap_algo, max_query_length, t_rmq, t_border, t_border_rank,
                t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding,
                t_doc_offset>& idx, const std::string&, sdsl::cache_config& cc,
                uint8_t num_bytes) {
@@ -369,7 +375,7 @@ void construct(idx_nn_k2_daat<t_csa, t_token, t_k2treap, t_treap_algo, max_query
     using namespace std;
     using t_df = DF_TYPE;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn_k2_daat<t_csa, t_token, t_k2treap, t_treap_algo, max_query_length, t_rmq, t_border, t_border_rank,
+    using idx_type = idx_nn_k2_daat<t_csa, t_k2treap, t_treap_algo, max_query_length, t_rmq, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 

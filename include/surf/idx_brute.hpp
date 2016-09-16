@@ -16,14 +16,18 @@ namespace surf {
 /*! Trivial implementation of top-k retrieval using brute force search, for
  * testing.
  */
-template <typename t_csa, typename t_token>
-class idx_brute : topk_index<t_token> {
+template <typename t_csa>
+class idx_brute
+    : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
 public:
     using alphabet_category = typename t_csa::alphabet_category;
     using csa_type = t_csa;
     using size_type = sdsl::int_vector<>::size_type;
 
 private:
+    using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
+    using token_type = typename topk_interface::token_type;
+
     csa_type m_csa;
     sdsl::rrr_vector<> m_doc_splitters;
     sdsl::rrr_vector<>::rank_1_type m_doc_splitters_rank;
@@ -37,8 +41,8 @@ public:
         m_doc_splitters_rank.set_vector(&m_doc_splitters);
     }
 
-    std::unique_ptr<topk_iterator<t_token>> topk(
-            size_t k, const t_token* begin, const t_token* end,
+    std::unique_ptr<typename topk_interface::iter> topk(
+            size_t k, const token_type* begin, const token_type* end,
             bool multi_occ = false, bool only_match = false) override {
         assert(!only_match);
         auto occs = locate(m_csa, begin, end);
@@ -52,7 +56,7 @@ public:
 
         m_results = topk_result_set(occs_by_doc.begin(),
                                     occs_by_doc.end());
-        return sort_topk_results<t_token>(&m_results);
+        return sort_topk_results<token_type>(&m_results);
     }
 
     void mem_info() const { }
@@ -95,11 +99,11 @@ void build_doc_splitters(sdsl::cache_config& cc, const t_vec& vec) {
 }
 }
 
-template <typename t_csa, typename t_token>
-void construct(idx_brute<t_csa, t_token>& idx,
+template <typename t_csa>
+void construct(idx_brute<t_csa>& idx,
                const std::string&, sdsl::cache_config& cc,
                uint8_t num_bytes) {
-    using t_idx = idx_brute<t_csa, t_token>;
+    using t_idx = idx_brute<t_csa>;
     std::cout << "Need CSA" << std::endl;
     if (!cache_file_exists<t_csa>(surf::KEY_CSA, cc)) {
         std::cout << "  building..." << std::endl;

@@ -12,22 +12,43 @@ using topk_result = std::pair<uint64_t, double>;
 using topk_result_set = std::vector<topk_result>;
 
 template <typename t_token>
-class topk_iterator {
-public:
+struct topk_iterator {
+    using token_type = t_token;
+    using snippet_type = std::vector<token_type>;
+
     virtual ~topk_iterator() {}
     virtual topk_result get() const = 0;
     virtual bool done() const = 0;
     virtual void next() = 0;
-    virtual std::vector<t_token> extract_snippet(const size_t k) const = 0;
+    virtual snippet_type extract_snippet(const size_t k) const = 0;
 };
 
 template <typename t_token>
-class topk_index {
-public:
+struct topk_index {
+    using token_type = t_token;
+    using iter = topk_iterator<t_token>;
+    using snippet_type = std::vector<token_type>;
+    using intersect_query = std::vector<std::pair<const token_type*, const token_type*>>;
+
     virtual ~topk_index() {}
-    virtual std::unique_ptr<topk_iterator<t_token>> topk(
-            size_t k, const t_token* begin, const t_token* end,
+    virtual std::unique_ptr<iter> topk(
+            size_t k, const token_type* begin, const token_type* end,
             bool multi_occ = false, bool only_match = false) = 0;
+
+    virtual std::unique_ptr<iter> topk_intersect(
+            size_t k, const intersect_query& query) {
+        std::cerr << "intersection not implemented" << std::endl;
+        abort();
+    }
+};
+
+template <typename t_alphabet_category>
+struct topk_index_by_alphabet {
+    using type = topk_index<
+        typename std::conditional<
+            std::is_same<t_alphabet_category, sdsl::int_alphabet_tag>::value,
+            uint64_t,
+            char>::type>;
 };
 
 template <typename t_token>

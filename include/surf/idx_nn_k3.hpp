@@ -108,7 +108,7 @@ public:
                     m_k2_iter = k3_treap_ns::top_k(m_idx->m_k2treap,
                     {std::get<0>(h_range), 0, 0},
                     {std::get<1>(h_range), depth - 1,
-                     10000});
+                     std::numeric_limits<uint64_t>::max()});
                 }
                 m_states.push({m_sp, m_ep});
                 this->next();
@@ -186,13 +186,13 @@ public:
                 if (valid) {
                     auto h_range = m_map_to_h(sp, ep);
                     if (!empty(h_range)) {
-                        /*
-                        auto res = topk_increasing_y(m_k2treap, k,
-                                                     std::get<0>(h_range),
-                                                     std::get<1>(h_range));
+                        uint64_t depth = end - begin;
+                        auto res = k3_treap_ns::topk_increasing_z(
+                                m_k2treap, k,
+                                std::get<0>(h_range), std::get<1>(h_range),
+                                0, depth - 1);
                         for (auto it : res)
                             m_results.emplace_back(it.second, it.first + 1);
-                            */
                     }
                     // TODO singleton results
                 }

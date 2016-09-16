@@ -127,7 +127,7 @@ public:
                 auto h_range = m_idx->m_map_to_h(m_sp, m_ep);
                 if (!empty(h_range)) {
                     uint64_t depth = end - begin;
-                    m_k2_iter = top_k(m_idx->m_k2treap,
+                    m_k2_iter = k2_treap_ns::top_k(m_idx->m_k2treap,
                     {std::get<0>(h_range), 0},
                     {std::get<1>(h_range), depth - 1});
                 }

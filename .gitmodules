@@ -1,9 +1,6 @@
 [submodule "external/fastpfor"]
 	path = external/fastpfor
 	url = https://github.com/lemire/FastPFor.git
-[submodule "external/sdsl-lite"]
-	path = external/sdsl-lite
-	url = https://github.com/niklasb/sdsl-lite.git
 [submodule "external/zeromq"]
 	path = external/zeromq
 	url = https://github.com/zeromq/libzmq.git

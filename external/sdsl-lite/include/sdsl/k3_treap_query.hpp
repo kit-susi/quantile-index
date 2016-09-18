@@ -152,7 +152,6 @@ std::vector<result_type> k3_treap_intersection(std::vector<sdsl::k3_treap_ns::to
             auto split = t.query_it[next_possible].split();
             if (t.document < get_document(t.query_it[next_possible])) {
                 auto left = split[0];
-                auto it = std::get<0>(*left);
                 if (left) {
                     t.st[next_possible].push(t.query_it[next_possible]);
                     changev(t,next_possible, left);
@@ -161,11 +160,9 @@ std::vector<result_type> k3_treap_intersection(std::vector<sdsl::k3_treap_ns::to
                 }
             } else {
                 auto right = split[1];
-                auto it = std::get<0>(*right);
                 if (right) {
                     changev(t,next_possible, right);
                 } else {
-                    auto it2 = std::get<0>(*t.st[next_possible].top());
                     changev(t,next_possible, t.st[next_possible].top());
                     t.st[next_possible].pop();
                     changed(t,get_document(t.query_it[next_possible]));

@@ -120,7 +120,6 @@ class top_k_iterator
         }
 
         std::array<top_k_iterator, 2> split() {
-            point_type p2 = std::get<0>(m_point_val_node);
             //std::cout << "m_p1 = " << m_p1[0] <<  " , " << m_p1[1] << " , " << m_p1[2] << std::endl;
             //std::cout << "m_p2 = " << m_p2[0] <<  " , " << m_p2[1] << " , " << m_p2[2] << std::endl;
             //std::cout << "trying to split" << std::get<0>(m_point_val_node)[0] << "," << std::get<0>(m_point_val_node)[1] << "," << std::get<0>(m_point_val_node)[2] << std::endl;

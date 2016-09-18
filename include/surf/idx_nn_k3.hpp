@@ -8,6 +8,7 @@
 #include <unordered_set>
 
 #include "sdsl/k3_treap.hpp"
+#include "sdsl/k3_treap_query.hpp"
 #include "sdsl/suffix_trees.hpp"
 #include "surf/construct_col_len.hpp"
 #include "surf/df_sada.hpp"
@@ -209,6 +210,34 @@ public:
                 return sort_topk_results<token_type>(&m_results);
             }
         }
+    }
+
+    std::unique_ptr<typename topk_interface::iter> topk_intersect(
+            size_t k, const typename topk_interface::intersect_query& query,
+            bool multi_occ = false, bool only_match = false) override {
+        std::vector<k3_treap_ns::top_k_iterator<t_k2treap>> iters;
+
+        m_results.clear();
+        for (const auto& q : query) {
+            uint64_t sp, ep;
+            bool valid = backward_search(m_csa, 0, m_csa.size() - 1,
+                                         q.first, q.second, sp, ep) > 0;
+            if (!valid)
+                return sort_topk_results<token_type>(&m_results);
+            auto h_range = m_map_to_h(sp, ep);
+            if (!empty(h_range)) {
+                uint64_t depth = q.second - q.first;
+                auto it = k3_treap_ns::top_k(m_k2treap,
+                        {std::get<0>(h_range), 0, 0},
+                        {std::get<1>(h_range), depth - 1,
+                                std::numeric_limits<uint64_t>::max()});
+                iters.push_back(it);
+            }
+        }
+
+        for (auto it : k3_treap_intersection::k3_treap_intersection(iters, k))
+            m_results.emplace_back(it.first, it.second);
+        return sort_topk_results<token_type>(&m_results);
     }
 
     result search(const std::vector<query_token>& qry, size_t k,

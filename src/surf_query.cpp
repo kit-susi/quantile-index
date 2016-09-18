@@ -23,6 +23,7 @@ typedef struct cmdargs {
     bool verbose = false;
     bool multi_occ = false;
     bool match_only = false;
+    bool intersection = false;
     uint64_t snippet_size = 0;
 } cmdargs_t;
 
@@ -31,13 +32,13 @@ print_usage(char* program)
 {
     fprintf(stdout, "%s -c <collection directory> -q <query file> other options\n", program);
     fprintf(stdout, "where\n");
-    fprintf(stdout, "  -c <collection directory>  : the directory the collection is stored.\n");
-    fprintf(stdout, "  -q <query file>  : the queries to be performed.\n");
-    fprintf(stdout, "  -k <top-k>  : the top-k documents to be retrieved for each query.\n");
-    fprintf(stdout, "  -v <verbose>  : verbose mode.\n");
-    fprintf(stdout, "  -m <multi_occ>  : only retrieve documents which contain the term more than once.\n");
-    fprintf(stdout, "  -o <multi_occ>  : only match pattern; no document retrieval.\n");
-    fprintf(stdout, "  -s <snippet_size>  : extract snippets of size snippet_size.\n");
+    fprintf(stdout, "  -c <collection directory> : the directory the collection is stored.\n");
+    fprintf(stdout, "  -q <query file>   : the queries to be performed.\n");
+    fprintf(stdout, "  -k <top-k>        : the top-k documents to be retrieved for each query.\n");
+    fprintf(stdout, "  -v <verbose>      : verbose mode.\n");
+    fprintf(stdout, "  -m <multi_occ>    : only retrieve documents which contain the term more than once.\n");
+    fprintf(stdout, "  -o <only_match>   : only match pattern; no document retrieval.\n");
+    fprintf(stdout, "  -s <snippet_size> : extract snippets of size snippet_size.\n");
 };
 
 
@@ -62,7 +63,7 @@ parse_args(int argc, char* const argv[])
     args.collection_dir = "";
     args.query_file = "";
     args.k = 10;
-    while ((op = getopt(argc, argv, "c:q:k:vmos:")) != -1) {
+    while ((op = getopt(argc, argv, "c:q:k:vmos:i")) != -1) {
         switch (op) {
             case 'c':
                 args.collection_dir = optarg;
@@ -84,6 +85,9 @@ parse_args(int argc, char* const argv[])
                 break;
             case 's':
                 args.snippet_size = std::strtoul(optarg, NULL, 10);
+                break;
+            case 'i':
+                args.intersection = true;
                 break;
             case '?':
             default:
@@ -110,6 +114,21 @@ struct myline {
     static string parse(const string& str) {
         return str;
     }
+
+    static vector<string> parse_multi(const string& str) {
+        vector<string> terms;
+        string cur_term;
+        for (char c : str) {
+            if (c == '\1') {
+                terms.push_back(cur_term);
+                cur_term.clear();
+            } else {
+                cur_term += c;
+            }
+        }
+        terms.push_back(cur_term);
+        return terms;
+    }
 };
 
 template<>
@@ -122,6 +141,24 @@ struct myline<sdsl::int_alphabet_tag> {
             res.push_back(x);
         }
         return res;
+    }
+
+    static vector<vector<uint64_t>> parse_multi(const string& str) {
+        vector<vector<uint64_t>> terms;
+        vector<uint64_t> cur_term;
+
+        stringstream ss(str);
+        uint64_t x;
+        while (ss >> x) {
+            if (x == 1) {
+                terms.push_back(cur_term);
+                cur_term.clear();
+            } else {
+                cur_term.push_back(x);
+            }
+        }
+        terms.push_back(cur_term);
+        return terms;
     }
 };
 
@@ -154,6 +191,8 @@ int main(int argc, char* argv[])
     }
     auto cc = surf::parse_collection<idx_type::alphabet_category>(args.collection_dir);
     idx.load(cc);
+    idx_type::topk_interface* topk = &idx;
+
     if (!args.verbose) {
         cout << "# pattern_file = " << args.query_file << endl;
         cout << "# doc_cnt = " << idx.doc_cnt() << endl;
@@ -177,7 +216,7 @@ int main(int argc, char* argv[])
     using timer = chrono::high_resolution_clock;
     auto start = timer::now();
 
-    vector<uint64_t> timings;  // microseconds
+    vector<uint64_t> timings;  // in microseconds
 
     size_t sum = 0;
     size_t sum_fdt = 0;
@@ -190,15 +229,31 @@ int main(int argc, char* argv[])
         sum_chars_extracted = 0;
         q_len = 0;
         q_cnt = 0;
-        start = timer::now(); // Reset timer.
         for (size_t i = 0; i < queries.size(); ++i) {
-            auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
-            q_len += query.size();
-            ++q_cnt;
+            std::unique_ptr<idx_type::topk_interface::iter> res_it;
+            idx_type::topk_interface::intersect_query intersect_query;
+            if (args.intersection) {
+                auto terms = myline<idx_type::alphabet_category>::parse_multi(
+                        queries[i].c_str());
+                for (const auto& term : terms) {
+                    intersect_query.emplace_back(
+                            term.data(), term.data() + term.size());
+                    q_len += term.size();
+                }
+
+                ++q_cnt;
+                start = timer::now();
+                res_it = topk->topk_intersect(args.k, intersect_query,
+                                              args.multi_occ, args.match_only);
+            } else {
+                auto query = myline<idx_type::alphabet_category>::parse(queries[i].c_str());
+                q_len += query.size();
+                ++q_cnt;
+                start = timer::now();
+                res_it = topk->topk(args.k, query.data(), query.data() + query.size(),
+                                    args.multi_occ, args.match_only);
+            }
             size_t x = 0;
-            auto start = timer::now();
-            auto res_it = idx.topk(args.k, query.data(), query.data() + query.size(),
-                                   args.multi_occ, args.match_only);
             while (x < args.k && !res_it->done()) {
                 ++x;
                 sum_fdt += res_it->get().second;

@@ -80,10 +80,9 @@ public:
     typedef t_doc_offset                               doc_offset_type;
     typedef typename t_doc_offset::select_1_type       doc_offset_select_type;
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
-
-private:
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
 
+private:
     csa_type           m_csa;
     border_type        m_border;
     border_rank_type   m_border_rank;

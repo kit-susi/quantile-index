@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import sys
 
 def is_sorted(lst, eps):
     """ Checks of lst of floats is sorted. """
@@ -56,14 +57,15 @@ def print_side_by_side(a, b):
         d2, s2 = b[i] if i < len(b) else ('','')
         print '%8s%10s   |%8s%10s' % (d1, s1, d2, s2)
 
-def gen_queries(args, seed):
+def gen_queries(n, args, seed):
     suffix = '_int' if get_collection_type(args.collection) == 'int' else ''
     return check_output(['build/gen_patterns' + suffix,
         '-c', args.collection,
         '-m', str(args.n),
-        '-x', str(args.q),
         '-s', str(seed),
-        ] + (['-o', str(args.min_sampling)] if args.min_sampling else []))
+        '-x', str(n),
+        ] + (['-o', str(args.min_sampling)] if args.min_sampling else [])
+        ).rstrip('\r\n').splitlines()
 
 
 if __name__ == '__main__':
@@ -85,16 +87,23 @@ if __name__ == '__main__':
     p.add_argument('-e', default=1e-6, type=float, metavar='FLOAT',
             help='Epsilon for score comparisons')
     p.add_argument('-o', dest='min_sampling', default=0, type=int, metavar='INT',
-            help='Only use ngrams that occur at least once every X samples')
+            help='Only use ngrams that occur at least once every X samples. Useful for intersection queries')
+    p.add_argument('-i', dest='intersection', default=1, type=int, metavar='INT',
+            help='Generate intersection queries with the given number of terms')
+    p.add_argument('-m', dest='multi_occ', default=True, action='store_true',
+            help='Find only multi-occurences')
+    p.add_argument('--no_multi_occ', dest='multi_occ', action='store_false',
+            help='Also find singleton occs')
     p.add_argument('--seed', default=random.randrange(1000000), type=int, metavar='INT',
             help='Random seed')
-    # NOTE currently parallel construction does not work
-    p.add_argument('--sequential', default=True, action='store_true',
-            help='Build collections in sequence, instead of parallel')
     p.add_argument('--ignore_singletons', default=False, action='store_true',
             help='Ignore single-document occurences (weight 1)')
     p.add_argument('--query_file',
             help='Store queries in the given file')
+
+    # NOTE currently parallel construction does not work, so this can not be turned off
+    p.add_argument('--sequential', default=True, action='store_true',
+            help='Build collections in sequence, instead of parallel')
 
     args = p.parse_args()
     collection_type = get_collection_type(args.collection)
@@ -132,8 +141,20 @@ if __name__ == '__main__':
     for _ in range(args.r):
         print 'Seed = %d' % seed
         random.seed(seed)
+
         print 'Generating queries...'
-        queries = gen_queries(args, seed=seed)
+        if args.intersection == 1:
+            # singleterm
+            queries = '\n'.join(gen_queries(args.q, args, seed=seed)) + '\n'
+        elif args.intersection > 1:
+            # multi-term with intersection
+            queries = ''
+            for i in range(args.q):
+                queries += '\1'.join(gen_queries(args.intersection,
+                                                 args,
+                                                 seed=seed + i)) + '\n'
+        else:
+            assert 0, "Invalid value for -i: %d" % args.intersection
 
         print 'Starting new round'
         last_result = None
@@ -154,6 +175,10 @@ if __name__ == '__main__':
                 ]
                 if args.q == 1:
                     cmd += ['-v']
+                if args.multi_occ:
+                    cmd += ['-m']
+                if args.intersection > 1:
+                    cmd += ['-i']
 
                 out = check_output(cmd)
                 if args.q == 1:
@@ -171,7 +196,7 @@ if __name__ == '__main__':
                         print 'Queries:', repr(queries)
                         print 'Different results:'
                         print_side_by_side(last_result, result)
-                        assert 0
+                        sys.exit(1)
                     last_result = result
                 else:
                     # otherwise print time

@@ -33,10 +33,11 @@ struct topk_index {
     virtual ~topk_index() {}
     virtual std::unique_ptr<iter> topk(
             size_t k, const token_type* begin, const token_type* end,
-            bool multi_occ = false, bool only_match = false) = 0;
+            bool multi_occ = false, bool match_only = false) = 0;
 
     virtual std::unique_ptr<iter> topk_intersect(
-            size_t k, const intersect_query& query) {
+            size_t k, const intersect_query& query,
+            bool multi_occ = false, bool match_only = false) {
         std::cerr << "intersection not implemented" << std::endl;
         abort();
     }

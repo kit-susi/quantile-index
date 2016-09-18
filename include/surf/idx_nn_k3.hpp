@@ -57,9 +57,9 @@ public:
     typedef t_doc_offset                               doc_offset_type;
     typedef typename t_doc_offset::select_1_type       doc_offset_select_type;
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
+    using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
 
 private:
-    using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
     using token_type = typename topk_interface::token_type;
 
     csa_type           m_csa;
@@ -179,6 +179,10 @@ public:
             const token_type* begin,
             const token_type* end,
             bool multi_occ = false, bool only_match = false) override {
+        if (!multi_occ) {
+            std::cerr << "No singleton queries implemented yet" << std::endl;
+            abort();
+        }
         switch (t_treap_algo) {
             case k3_treap_algo::UNORDERED: {
                 return std::make_unique<top_k_iterator>(

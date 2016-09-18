@@ -21,11 +21,11 @@ class idx_brute
     : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
 public:
     using alphabet_category = typename t_csa::alphabet_category;
+    using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
     using csa_type = t_csa;
     using size_type = sdsl::int_vector<>::size_type;
 
 private:
-    using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
     using token_type = typename topk_interface::token_type;
 
     csa_type m_csa;
@@ -44,9 +44,7 @@ public:
     std::unique_ptr<typename topk_interface::iter> topk(
             size_t k, const token_type* begin, const token_type* end,
             bool multi_occ = false, bool only_match = false) override {
-        assert(!only_match);
         auto occs = locate(m_csa, begin, end);
-        std::sort(occs.begin(), occs.end());
 
         std::map<uint64_t, double> occs_by_doc;
         for (auto pos : occs) {
@@ -54,8 +52,42 @@ public:
             occs_by_doc[doc] += 1;
         }
 
-        m_results = topk_result_set(occs_by_doc.begin(),
-                                    occs_by_doc.end());
+        m_results.clear();
+        for (auto it : occs_by_doc)
+            if (!multi_occ || it.second > 1)
+                m_results.emplace_back(it.first, it.second);
+        return sort_topk_results<token_type>(&m_results);
+    }
+
+    std::unique_ptr<typename topk_interface::iter> topk_intersect(
+            size_t k, const typename topk_interface::intersect_query& query,
+            bool multi_occ = false, bool only_match = false) override {
+        std::map<uint64_t, double> by_doc;
+
+        bool first = true;
+        for (const auto& q : query) {
+            auto occs = locate(m_csa, q.first, q.second);
+            std::map<uint64_t, double> by_doc_new;
+            for (auto pos : occs) {
+                auto doc = m_doc_splitters_rank(pos);
+                if (first || by_doc.count(doc))
+                    by_doc_new[doc] += 1;
+            }
+            std::vector<uint64_t> erase_docs;
+            for (auto& it : by_doc_new) {
+                if (multi_occ && it.second <= 1)
+                    erase_docs.push_back(it.first);
+                else
+                    it.second += by_doc[it.first];
+            }
+            for (uint64_t doc : erase_docs)
+                by_doc_new.erase(doc);
+
+            std::swap(by_doc_new, by_doc);
+            first = false;
+        }
+
+        m_results = topk_result_set(by_doc.begin(), by_doc.end());
         return sort_topk_results<token_type>(&m_results);
     }
 

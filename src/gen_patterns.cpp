@@ -1,6 +1,7 @@
 #include "sdsl/config.hpp"
 #include "surf/util.hpp"
 #include "sdsl/int_vector_buffer.hpp"
+#include "sdsl/suffix_trees.hpp"
 #include <algorithm>
 #include <chrono>
 #include <map>
@@ -86,8 +87,8 @@ parse_args(int argc,char* const argv[])
     return args;
 }
 
-template <typename T, typename R>
-void get_ngram(T& buf, R& dice, size_t n, string& res) {
+template <typename T, typename R, typename S>
+void get_ngram(T& buf, R& dice, size_t n, S& res) {
     for(;;) {
         auto x = dice();
         bool valid = true;
@@ -100,65 +101,94 @@ void get_ngram(T& buf, R& dice, size_t n, string& res) {
     }
 }
 
+class string_vector_hash_fn {
+public:
+	std::size_t operator()(std::vector<int> const& vec) const {
+		std::size_t ret = 0;
+		for(auto& i : vec) {
+			ret ^= std::hash<uint32_t>()(i);
+		}
+		return ret;
+	}
+	
+	std::size_t operator()(std::string const& s) const {
+		std::hash<string> h;
+		return h(s);
+	}
+};
+
+
+template<typename S, typename T>
+int find_ngrams(T& text_buf, cmdargs_t& args) {
+	if ( text_buf.size() < args.pat_len ){
+		std::cout<<"ERROR: text.size()="<<text_buf.size()<<" < m=" <<args.pat_len << std::endl;
+		return 1;
+	}
+	
+	//cout << "seed = " << args.seed << endl;
+	std::mt19937_64 rng(args.seed);
+	std::uniform_int_distribution<uint64_t> distribution(0, text_buf.size()-args.pat_len);
+	auto dice = bind(distribution, rng);
+	
+	S ngram(args.pat_len,'0');
+	
+	if (args.min_sampling) {
+		string_vector_hash_fn h;
+		unordered_map<size_t, S> ngram_storage(args.ngram_samples << 1);
+		unordered_map<size_t, size_t> ngram_counts(args.ngram_samples << 1);
+		for (int i = args.ngram_samples; i--;) {
+			get_ngram(text_buf, dice, args.pat_len, ngram);
+			ngram_counts[h(ngram)]++;
+			ngram_storage[h(ngram)] = ngram;
+		}
+		
+		vector<S> ngrams;
+		ngrams.reserve(args.pat_cnt);
+		auto threshold = args.ngram_samples / args.min_sampling;
+		for (const auto& it : ngram_counts)
+			if (it.second >= threshold)
+				ngrams.push_back(ngram_storage[it.first]);
+			std::shuffle(ngrams.begin(), ngrams.end(), rng);
+		
+		if (args.pat_cnt > ngrams.size()) {
+			std::cerr << "Not enough ngrams found" << endl;
+			exit(1);
+		}
+		for (size_t i = 0; i < args.pat_cnt; ++i)
+			for(size_t j = 0; j < ngrams[i].size(); ++j)
+				cout << ngrams[i][j] << ((j+1 == ngrams[i].size()) ? "\n" : "");
+	} else {
+		string_vector_hash_fn h; vector<S> results;
+		unordered_map<size_t,bool> vis;
+		while (results.size() < args.pat_cnt) {
+			get_ngram(text_buf, dice, args.pat_len, ngram);
+			if(!vis[h(ngram)]) {
+				results.push_back(ngram); vis[h(ngram)] = true;
+			}
+		}
+		for (const S& x: results)
+			for(size_t j = 0; j < x.size(); ++j)
+				cout << x[j] << ((j+1 == x.size()) ? "\n" : "");
+	}
+	
+	return EXIT_SUCCESS;
+}
+
 int main(int argc,char* const argv[])
 {
     /* parse command line */
     cmdargs_t args = parse_args(argc,argv);
     if (args.int_collection) {
-        cerr << "int collections not implemented yet" << endl;
-        return EXIT_FAILURE;
+		std::string text_file = args.collection_dir+"/"+surf::TEXT_FILENAME;
+		sdsl::int_vector_buffer<> text_buf(text_file, std::ios::in);
+		return find_ngrams<vector<int>>(text_buf, args);
     }
+    else {
+		std::string text_file = args.collection_dir+"/"+surf::TEXT_FILENAME_BYTE;
+		sdsl::int_vector_buffer<8> text_buf(text_file, std::ios::in);
+		return find_ngrams<string>(text_buf, args);
+	}
 
-//    std::cout<<"collection dir="<<args.collection_dir<<std::endl;
-    std::string text_file = args.collection_dir+"/"+surf::TEXT_FILENAME_BYTE;
-//    std::cout<<"> "<<text_file<<std::endl;
-    sdsl::int_vector_buffer<8> text_buf(text_file, std::ios::in);
-//    std::cout<<"n="<<text_buf.size()<<std::endl;
-
-    if ( text_buf.size() < args.pat_len ){
-        std::cout<<"ERROR: text.size()="<<text_buf.size()<<" < m=" <<args.pat_len << std::endl;
-        return 1;
-    }
-
-    //cout << "seed = " << args.seed << endl;
-    std::mt19937_64 rng(args.seed);
-    std::uniform_int_distribution<uint64_t> distribution(0, text_buf.size()-args.pat_len);
-    auto dice = bind(distribution, rng);
-
-    string ngram(args.pat_len, '0');
-
-    if (args.min_sampling) {
-        unordered_map<string, size_t> ngram_counts(args.ngram_samples << 1);
-        for (int i = args.ngram_samples; i--;) {
-            get_ngram(text_buf, dice, args.pat_len, ngram);
-            ngram_counts[ngram]++;
-        }
-
-        vector<string> ngrams;
-        ngrams.reserve(args.pat_cnt);
-        auto threshold = args.ngram_samples / args.min_sampling;
-        for (const auto& it : ngram_counts)
-            if (it.second >= threshold)
-                ngrams.push_back(it.first);
-        std::shuffle(ngrams.begin(), ngrams.end(), rng);
-
-        if (args.pat_cnt > ngrams.size()) {
-            std::cerr << "Not enough ngrams found" << endl;
-            exit(1);
-        }
-        for (size_t i = 0; i < args.pat_cnt; ++i)
-            cout << ngrams[i] << "\n";
-    } else {
-        unordered_set<string> results;
-        while (results.size() < args.pat_cnt) {
-            get_ngram(text_buf, dice, args.pat_len, ngram);
-            results.insert(ngram);
-        }
-        for (const string& x: results)
-            cout << x << "\n";
-    }
-
-    return EXIT_SUCCESS;
 }
 
 

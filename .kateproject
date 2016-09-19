@@ -1,0 +1,5 @@
+{
+  "name": "SUSI",
+  "directory": "/home/theuer/Dokumente/susi",
+  "files": [ { "filters": [ "*.cpp", "*.hpp", "*.h", "*.cc", "*.sh", "*.py", "*.txt", "*.config" ] } ]
+}

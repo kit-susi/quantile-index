@@ -110,11 +110,18 @@ int main(int argc, char* argv[]) {
     cout << "dict_size " << dictionary.size() << endl;
     cout << "total_size " << total_size << endl;
     int_vector<> text;
+
     text.resize(total_size + 1);
-    text[total_size] = 0;
+    text[text.size() - 1] = 0;
+
     vector<uint64_t> word_count(dictionary.size(), 0);
     {   // Count words and built integer sequence.
         ifstream ifile(infile);
+        if (input_is_sdsl) {
+            // skip int vector header
+            char throwaway[8];
+            ifile.read(throwaway, 8);
+        }
         istreambuf_iterator<char> file_iter(ifile);
         istreambuf_iterator<char> end_of_stream;
         tokenizer tokens(file_iter, end_of_stream, sep);
@@ -132,6 +139,9 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+    for (uint64_t x: text)
+        cout << x << endl;
+
     util::bit_compress(text);
     //for (const auto& w : text) cout << w << " "; cout << endl;
     store_to_file(text, outdir + "/text_int_SURF.sdsl");

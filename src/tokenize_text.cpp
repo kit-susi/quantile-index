@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <sdsl/int_vector.hpp>
 #include <iostream>
 #include <boost/tokenizer.hpp>
@@ -72,6 +73,17 @@ void parse_opts(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
     parse_opts(argc, argv);
 
+    if (input_is_sdsl) {
+        int_vector<8> text;
+        load_from_file(text, infile);
+
+        infile = std::tmpnam(nullptr);
+        cout << "Using temporary file " << infile << endl;
+        ofstream ofile(infile);
+        for (uint64_t c : text)
+            ofile.put(c);
+    }
+
     //int_vector<> text;
     //load_from_file(text, argv[1]);
     //text.resize(text.size()+1);
@@ -85,11 +97,6 @@ int main(int argc, char* argv[]) {
     uint64_t total_size = 0;
     {   // Build dictionary.
         ifstream ifile(infile);
-        if (input_is_sdsl) {
-            // skip int vector header
-            char throwaway[8];
-            ifile.read(throwaway, 8);
-        }
         istreambuf_iterator<char> file_iter(ifile);
         istreambuf_iterator<char> end_of_stream;
         tokenizer tokens(file_iter, end_of_stream, sep);
@@ -117,11 +124,6 @@ int main(int argc, char* argv[]) {
     vector<uint64_t> word_count(dictionary.size(), 0);
     {   // Count words and built integer sequence.
         ifstream ifile(infile);
-        if (input_is_sdsl) {
-            // skip int vector header
-            char throwaway[8];
-            ifile.read(throwaway, 8);
-        }
         istreambuf_iterator<char> file_iter(ifile);
         istreambuf_iterator<char> end_of_stream;
         tokenizer tokens(file_iter, end_of_stream, sep);
@@ -157,4 +159,7 @@ int main(int argc, char* argv[]) {
                  word_count[entry.second] << endl;
         }
     }
+
+    if (input_is_sdsl)
+        std::remove(infile.c_str());
 }

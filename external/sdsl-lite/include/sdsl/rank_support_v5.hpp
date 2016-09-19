@@ -150,6 +150,7 @@ class rank_support_v5 : public rank_support
 
         void load(std::istream& in, const bit_vector* v=nullptr) {
             set_vector(v);
+            assert(m_v != nullptr); // supported bit vector should be known
             m_basic_block.load(in);
         }
 

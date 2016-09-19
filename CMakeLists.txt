@@ -87,11 +87,8 @@ TARGET_LINK_LIBRARIES(extract_document sdsl divsufsort divsufsort64 pthread fast
 ADD_EXECUTABLE(surf_collection_info tools/surf_collection_info.cpp)
 TARGET_LINK_LIBRARIES(surf_collection_info sdsl divsufsort divsufsort64 pthread fastpfor_lib)
 
-ADD_EXECUTABLE(text2surf tools/text2surf.cpp)
-TARGET_LINK_LIBRARIES(text2surf sdsl)
-
-ADD_EXECUTABLE(int2surf tools/int2surf.cpp)
-TARGET_LINK_LIBRARIES(int2surf sdsl)
+ADD_EXECUTABLE(convert2surf tools/convert2surf.cpp)
+TARGET_LINK_LIBRARIES(convert2surf sdsl)
 
 ADD_EXECUTABLE(size_info tools/size_info_nn.cpp)
 TARGET_LINK_LIBRARIES(size_info)

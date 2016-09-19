@@ -1,6 +1,6 @@
 #include <sdsl/int_vector.hpp>
 #include <iostream>
-#include<boost/tokenizer.hpp>
+#include <boost/tokenizer.hpp>
 #include <map>
 
 using namespace boost;

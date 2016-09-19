@@ -58,13 +58,14 @@ def print_side_by_side(a, b):
         print '%8s%10s   |%8s%10s' % (d1, s1, d2, s2)
 
 def gen_queries(n, args, seed):
-    suffix = '_int' if get_collection_type(args.collection) == 'int' else ''
-    return check_output(['%s/gen_patterns%s' % (args.build_dir, suffix),
+    return check_output(['%s/gen_patterns' % args.build_dir,
         '-c', args.collection,
         '-m', str(args.n),
         '-s', str(seed),
         '-x', str(n),
-        ] + (['-o', str(args.min_sampling)] if args.min_sampling else [])
+        ]
+        + (['-o', str(args.min_sampling)] if args.min_sampling else [])
+        + (['-i'] if get_collection_type(args.collection) == 'int' else [])
         ).rstrip('\r\n').splitlines()
 
 

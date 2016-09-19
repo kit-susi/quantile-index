@@ -18,19 +18,21 @@ typedef struct cmdargs {
     size_t min_sampling;
     size_t seed;
     size_t ngram_samples;
+    bool int_collection;
 } cmdargs_t;
 
 void
-print_usage(char* program)
+usage(char* program)
 {
-    fprintf(stdout,"%s -c <collection directory> -m\n",program);
-    fprintf(stdout,"where\n");
-    fprintf(stdout,"  -c <collection directory>  : the directory the collection is stored.\n");
-    fprintf(stdout,"  -m <pattern length>        : the  pattern length.\n");
-    fprintf(stdout,"  -x <number of patterns>    : generate x distinct patterns.\n");
-    fprintf(stdout,"  -o <occurences>            : only return ngrams that are sampled at least once each X samples. 0 = disable\n");
-    fprintf(stdout,"  -n <ngram samples>         : how many ngrams to sample if -p is given\n");
-    fprintf(stdout,"  -s <random seed>\n");
+    printf("%s -c <collection directory> -m\n",program);
+    printf("where\n");
+    printf("  -c <collection directory>  : the directory the collection is stored.\n");
+    printf("  -m <pattern length>        : the  pattern length.\n");
+    printf("  -x <number of patterns>    : generate x distinct patterns.\n");
+    printf("  -o <occurences>            : only return ngrams that are sampled at least once each X samples. 0 = disable\n");
+    printf("  -n <ngram samples>         : how many ngrams to sample if -p is given\n");
+    printf("  -s <random seed>\n");
+    exit(EXIT_FAILURE);
 };
 
 cmdargs_t
@@ -43,13 +45,17 @@ parse_args(int argc,char* const argv[])
     args.pat_cnt = 0;
     args.ngram_samples = 1<<13;
     args.min_sampling = 0;
+    args.int_collection = false;
 
     auto now = std::chrono::high_resolution_clock::now();
     srand(chrono::duration_cast<chrono::microseconds>(now.time_since_epoch()).count());
     args.seed = rand();
 
-    while ((op=getopt(argc,argv,"c:m:x:o:s:n:")) != -1) {
+    while ((op=getopt(argc,argv,"ic:m:x:o:s:n:")) != -1) {
         switch (op) {
+            case 'i':
+                args.int_collection = true;
+                break;
             case 'c':
                 args.collection_dir = optarg;
                 break;
@@ -70,14 +76,12 @@ parse_args(int argc,char* const argv[])
                 break;
             case '?':
             default:
-                print_usage(argv[0]);
-                exit(EXIT_FAILURE);
+                usage(argv[0]);
         }
     }
     if (args.collection_dir=="" || args.pat_len==0 || args.pat_cnt==0) {
         std::cerr << "Missing command line parameters.\n";
-        print_usage(argv[0]);
-        exit(EXIT_FAILURE);
+        usage(argv[0]);
     }
     return args;
 }
@@ -100,6 +104,11 @@ int main(int argc,char* const argv[])
 {
     /* parse command line */
     cmdargs_t args = parse_args(argc,argv);
+    if (args.int_collection) {
+        cerr << "int collections not implemented yet" << endl;
+        return EXIT_FAILURE;
+    }
+
 //    std::cout<<"collection dir="<<args.collection_dir<<std::endl;
     std::string text_file = args.collection_dir+"/"+surf::TEXT_FILENAME_BYTE;
 //    std::cout<<"> "<<text_file<<std::endl;

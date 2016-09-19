@@ -25,4 +25,4 @@ cmake -DCMAKE_BUILD_TYPE=$build_type ../..
 set +x
 
 set -x
-make -j "$@"
+make -j16 "$@"

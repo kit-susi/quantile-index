@@ -59,13 +59,14 @@ def print_side_by_side(a, b):
         print '%8s%10s   |%8s%10s' % (d1, s1, d2, s2)
 
 def gen_queries(n, args, seed):
-    suffix = '_int' if get_collection_type(args.collection) == 'int' else ''
-    return check_output(['build/gen_patterns' + suffix,
+    return check_output(['%s/gen_patterns' % args.build_dir,
         '-c', args.collection,
         '-m', str(args.n),
         '-s', str(seed),
         '-x', str(n),
-        ] + (['-o', str(args.min_sampling)] if args.min_sampling else [])
+        ]
+        + (['-o', str(args.min_sampling)] if args.min_sampling else [])
+        + (['-i'] if get_collection_type(args.collection) == 'int' else [])
         ).rstrip('\r\n').splitlines()
 
 
@@ -101,6 +102,8 @@ if __name__ == '__main__':
             help='Ignore single-document occurences (weight 1)')
     p.add_argument('--query_file',
             help='Store queries in the given file')
+    p.add_argument('-b', dest='build_dir', default='build/release',
+            help='Build directory (default: build/release)')
 
     # NOTE currently parallel construction does not work, so this can not be turned off
     p.add_argument('--sequential', default=True, action='store_true',
@@ -113,12 +116,14 @@ if __name__ == '__main__':
         print 'Deleting old indexes'
         subprocess.check_call(['rm', '-r', args.collection + '/index'])
 
+    print 'Using build dir = %s' % args.build_dir
+
     threads = []
     for config in args.targets:
         def build(config):
             print 'Building index for config %s' % config
             cmd = [
-                'build/surf_index-%s' % config,
+                '%s/surf_index-%s' % (args.build_dir, config),
                 '-c', args.collection
             ]
             print '    Running command: %s' % ' '.join(cmd)
@@ -170,7 +175,7 @@ if __name__ == '__main__':
             for config in args.targets:
                 print '    Running with %s' % config
                 cmd = [
-                    'build/surf_query-%s' % config,
+                    '%s/surf_query-%s' % (args.build_dir, config),
                     '-c', args.collection,
                     '-q', f.name,
                     '-k', str(args.k),

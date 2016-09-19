@@ -1,0 +1,4 @@
+/**/*.sdsl
+/**/*.html
+!/TEST_*/*.sdsl
+!/TEST_*/dict.txt

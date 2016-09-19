@@ -5,9 +5,38 @@
 using namespace sdsl;
 using namespace std;
 
+bool int_collection = false;
+size_t num_docs = 0;
+size_t doc_len = 0;
+string infile;
+string outdir = ".";
+
 template <typename T>
-void finalize(T& text, size_t num_docs=0) {
-    if (num_docs) {
+void process(T& text) {
+    if (doc_len) {
+        T text_new(text.size());
+        cout << "Using " << doc_len << " terms of first " << num_docs << " documents" << endl;
+        size_t doc_start = 0;
+        size_t new_offset = 0;
+        while (num_docs > 0 && doc_start < text.size()) {
+            // copy document from text to text_new, but only first doc_len
+            // chars
+            size_t i = 0;
+            for (; i < doc_len && text[doc_start + i] != 1; ++i)
+                text_new[new_offset++] = text[doc_start + i];
+            text_new[new_offset++] = 1;
+
+            doc_start += i;
+            // find actual end of document
+            while (doc_start < text.size() && text[doc_start] != 1)
+                ++doc_start;
+            ++doc_start;
+
+            --num_docs;
+        }
+        text_new.resize(new_offset);
+        std::swap(text_new, text);
+    } else if (num_docs) {
         cout << "Using first " << num_docs << " documents" << endl;
         size_t i = 0;
         while (num_docs > 0 && i < text.size()) {
@@ -19,39 +48,27 @@ void finalize(T& text, size_t num_docs=0) {
         cout << "Truncating at index " << i << " / " << text.size() << endl;
         text.resize(i);
     }
-    text.resize(text.size()+1);
-    text[text.size()-1]=0;
-}
-
-void convert_text(const string& infile, size_t num_docs=0) {
-    int_vector<8> text;
-    load_vector_from_file(text, infile, 1);
-    finalize(text);
-    store_to_file(text, "text_SURF.sdsl");
-}
-
-void convert_int(const string& infile, int num_docs=0) {
-    int_vector<> text;
-    load_from_file(text, infile);
-    finalize(text);
-    store_to_file(text, "text_int_SURF.sdsl");
+    text.resize(text.size() + 1);
+    text[text.size() - 1] = 0;
 }
 
 void usage(const string& prog) {
-    cout<<"Usage: "<<prog<<" [-i] [-d num_docs] file_name"<<endl;
+    cout << "Usage: " << prog << " [-i] [-d num_docs] [-l doc_len] [-o outdir] file_name" << endl;
     exit(EXIT_FAILURE);
 }
 
-bool int_collection = false;
-size_t num_docs = 0;
-string infile;
-
 void parse_opts(int argc, char* const argv[]) {
     int op;
-    while ((op = getopt(argc, argv, "id:")) != -1) {
+    while ((op = getopt(argc, argv, "id:l:o:")) != -1) {
         switch (op) {
             case 'd':
                 num_docs = stoull(string(optarg));
+                break;
+            case 'l':
+                doc_len = stoull(string(optarg));
+                break;
+            case 'o':
+                outdir = optarg;
                 break;
             case 'i':
                 int_collection = true;
@@ -67,8 +84,15 @@ void parse_opts(int argc, char* const argv[]) {
 
 int main(int argc, char* argv[]) {
     parse_opts(argc, argv);
-    if (int_collection)
-        convert_int(infile, num_docs);
-    else
-        convert_text(infile, num_docs);
+    if (int_collection) {
+        int_vector<> text;
+        load_from_file(text, infile);
+        process(text);
+        store_to_file(text, outdir + "/text_int_SURF.sdsl");
+    } else {
+        int_vector<8> text;
+        load_vector_from_file(text, infile, 1);
+        process(text);
+        store_to_file(text, outdir + "/text_SURF.sdsl");
+    }
 }

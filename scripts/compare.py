@@ -8,7 +8,15 @@ import subprocess
 import tempfile
 import threading
 import time
+import traceback
 import sys
+
+def exe(cmd):
+    try:
+        return check_output(cmd)
+    except Exception, e:
+        print 'Error while running `%s`: %s' % (' '.join(cmd), e)
+        raise
 
 def is_sorted(lst, eps):
     """ Checks of lst of floats is sorted. """
@@ -58,7 +66,7 @@ def print_side_by_side(a, b):
         print '%8s%10s   |%8s%10s' % (d1, s1, d2, s2)
 
 def gen_queries(n, args, seed):
-    return check_output(['%s/gen_patterns' % args.build_dir,
+    return exe(['%s/gen_patterns' % args.build_dir,
         '-c', args.collection,
         '-m', str(args.n),
         '-s', str(seed),
@@ -126,7 +134,10 @@ if __name__ == '__main__':
                 '-c', args.collection
             ]
             print '    Running command: %s' % ' '.join(cmd)
-            check_output(cmd)
+            try:
+                exe(cmd)
+            except Exception:
+                sys.exit(1)
 
         t = threading.Thread(target=build, args=(config,))
         t.start()
@@ -185,7 +196,11 @@ if __name__ == '__main__':
                 if args.intersection > 1:
                     cmd += ['-i']
 
-                out = check_output(cmd)
+                try:
+                    out = exe(cmd)
+                except Exception, e:
+                    sys.exit(1)
+
                 if args.q == 1:
                     # check correctness only for q = 1
                     lines = out.strip().splitlines()

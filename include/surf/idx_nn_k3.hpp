@@ -320,7 +320,7 @@ public:
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
-                        std::string name = "")const {
+                        std::string name = "") const {
         structure_tree_node* child = structure_tree::add_child(v, name,
                                      util::class_name(*this));
         size_type written_bytes = 0;

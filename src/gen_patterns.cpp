@@ -28,7 +28,7 @@ print_usage(char* program)
     fprintf(stdout,"  -c <collection directory>  : the directory the collection is stored.\n");
     fprintf(stdout,"  -m <pattern length>        : the  pattern length.\n");
     fprintf(stdout,"  -x <number of patterns>    : generate x distinct patterns.\n");
-    fprintf(stdout,"  -o <occurences>            : ngram is sampled at least once each X samples. 0 = disable\n");
+    fprintf(stdout,"  -o <occurences>            : only return ngrams that are sampled at least once each X samples. 0 = disable\n");
     fprintf(stdout,"  -n <ngram samples>         : how many ngrams to sample if -p is given\n");
     fprintf(stdout,"  -s <random seed>\n");
 };
@@ -151,3 +151,5 @@ int main(int argc,char* const argv[])
 
     return EXIT_SUCCESS;
 }
+
+

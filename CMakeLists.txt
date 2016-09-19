@@ -60,47 +60,16 @@ foreach(f ${index_config_files})
 	set_property(TARGET surf_query-${NAME} PROPERTY COMPILE_DEFINITIONS IDXNAME="${NAME}" ${compile_defs})
 endforeach(f)
 
-ADD_EXECUTABLE(doc_lengths src/doc_lengths.cpp)
-TARGET_LINK_LIBRARIES(doc_lengths sdsl)
-
 ADD_EXECUTABLE(gen_patterns src/gen_patterns.cpp)
 TARGET_LINK_LIBRARIES(gen_patterns sdsl divsufsort divsufsort64 pthread)
 
 ADD_EXECUTABLE(gen_patterns_int src/gen_patterns_int.cpp)
 TARGET_LINK_LIBRARIES(gen_patterns_int sdsl divsufsort divsufsort64 pthread)
 
-ADD_EXECUTABLE(test src/test.cpp)
-TARGET_LINK_LIBRARIES(test sdsl divsufsort divsufsort64 pthread)
-
-ADD_EXECUTABLE(create_surf_collection tools/create_surf_collection.cpp)
-TARGET_LINK_LIBRARIES(create_surf_collection sdsl divsufsort divsufsort64 pthread fastpfor_lib)
-
-ADD_EXECUTABLE(convert_results_to_trec tools/convert_results_to_trec.cpp)
-TARGET_LINK_LIBRARIES(convert_results_to_trec sdsl divsufsort divsufsort64 pthread fastpfor_lib)
-
-ADD_EXECUTABLE(extract_documents tools/extract_documents.cpp)
-TARGET_LINK_LIBRARIES(extract_documents sdsl divsufsort divsufsort64 pthread fastpfor_lib)
-
-ADD_EXECUTABLE(extract_document tools/extract_document.cpp)
-TARGET_LINK_LIBRARIES(extract_document sdsl divsufsort divsufsort64 pthread fastpfor_lib)
-
-ADD_EXECUTABLE(surf_collection_info tools/surf_collection_info.cpp)
-TARGET_LINK_LIBRARIES(surf_collection_info sdsl divsufsort divsufsort64 pthread fastpfor_lib)
-
-ADD_EXECUTABLE(convert2surf tools/convert2surf.cpp)
+ADD_EXECUTABLE(convert2surf src/convert2surf.cpp)
 TARGET_LINK_LIBRARIES(convert2surf sdsl)
 
-ADD_EXECUTABLE(size_info tools/size_info_nn.cpp)
-TARGET_LINK_LIBRARIES(size_info)
-
-ADD_EXECUTABLE(surf2dcc13 tools/surf2dcc13.cpp)
-TARGET_LINK_LIBRARIES(surf2dcc13 sdsl)
-
-ADD_EXECUTABLE(tokenize_text tools/tokenize_text.cpp)
+ADD_EXECUTABLE(tokenize_text src/tokenize_text.cpp)
 TARGET_LINK_LIBRARIES(tokenize_text sdsl)
 
-ADD_EXECUTABLE(input_size tools/input_size.cpp)
-TARGET_LINK_LIBRARIES(input_size sdsl)
 
-ADD_EXECUTABLE(greedy_patch tools/greedy_patch.cpp)
-TARGET_LINK_LIBRARIES(greedy_patch sdsl)

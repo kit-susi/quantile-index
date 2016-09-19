@@ -10,8 +10,6 @@
 #include "sdsl/suffix_trees.hpp"
 #include "surf/construct_col_len.hpp"
 #include "surf/df_sada.hpp"
-#include "surf/idx_d.hpp"
-#include "surf/idx_nn.hpp"
 #include "surf/k2_treap_algos.hpp"
 #include "surf/rank_functions.hpp"
 #include "surf/topk_interface.hpp"
@@ -235,21 +233,6 @@ public:
         }
     }
 
-    result search(const std::vector<query_token>& qry, size_t k,
-                  bool ranked_and = false, bool profile = false) const {
-        result res;
-        if (qry.size() > 0) {
-            auto res_iter = topk(qry[0].token_ids.begin(), qry[0].token_ids.end());
-            size_t i = 0;
-            while (i < k and !res_iter.done()) {
-                ++i;
-                auto docid_weight = *res_iter;
-                res.list.emplace_back(docid_weight.first, docid_weight.second);
-                ++res_iter;
-            }
-        }
-        return res;
-    }
 
     // Decode m_doc value at postion index by using offset encoding.
     uint64_t get_doc(const uint64_t index) const {

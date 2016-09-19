@@ -2,6 +2,7 @@
 #define SURF_CONSTRUCT_COL_LEN_HPP
 
 #include <sdsl/int_vector.hpp>
+#include "config.hpp"
 
 namespace surf{
 

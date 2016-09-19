@@ -12,7 +12,6 @@
 #include "sdsl/suffix_trees.hpp"
 #include "surf/construct_col_len.hpp"
 #include "surf/df_sada.hpp"
-#include "surf/idx_d.hpp"
 #include "surf/k3_treap_algos.hpp"
 #include "surf/rank_functions.hpp"
 
@@ -238,22 +237,6 @@ public:
         for (auto it : k3_treap_intersection::k3_treap_intersection(iters, k))
             m_results.emplace_back(it.first, it.second);
         return sort_topk_results<token_type>(&m_results);
-    }
-
-    result search(const std::vector<query_token>& qry, size_t k,
-                  bool ranked_and = false, bool profile = false) const {
-        result res;
-        if (qry.size() > 0) {
-            auto res_iter = topk(qry[0].token_ids.begin(), qry[0].token_ids.end());
-            size_t i = 0;
-            while (i < k and !res_iter.done()) {
-                ++i;
-                auto docid_weight = *res_iter;
-                res.list.emplace_back(docid_weight.first, docid_weight.second);
-                ++res_iter;
-            }
-        }
-        return res;
     }
 
     // Decode m_doc value at postion index by using offset encoding.

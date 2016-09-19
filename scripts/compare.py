@@ -1,5 +1,6 @@
 #!/usr/bin/env python2
 from subprocess import check_output
+from prettytable import PrettyTable
 import argparse
 import os
 import random
@@ -165,6 +166,7 @@ if __name__ == '__main__':
                     g.write(queries)
             f.write(queries)
             f.flush()
+            res = PrettyTable(['IDX','Avg','Median','Max','Sigma']);
             for config in args.targets:
                 print '    Running with %s' % config
                 cmd = [
@@ -204,6 +206,10 @@ if __name__ == '__main__':
                     median = int(out.split('time_per_query_median = ')[1].split()[0])
                     maxi = int(out.split('time_per_query_max = ')[1].split()[0])
                     sigma = float(out.split('time_per_query_sigma = ')[1].split()[0])
-                    print '      Time per query (avg / median / max / sigma): %d %.2f %d %.2f' % (
-                            avg, median, maxi, sigma)
+                    res.add_row([config,avg,median,maxi,sigma]);
+                    #print '      Time per query (avg / median / max / sigma): %d %.2f %d %.2f' % (
+                            #avg, median, maxi, sigma)
+            if args.q != 1:
+            	print 'Time per query (sorted by Avg)'
+            	print res.get_string(sortby='Avg')
         seed = random.randrange(1000000)

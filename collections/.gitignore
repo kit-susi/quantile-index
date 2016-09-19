@@ -1,3 +1,4 @@
 /**/*.sdsl
 /**/*.html
-!/TEST_*/{*.sdsl,dict.txt}
+!/TEST_*/*.sdsl
+!/TEST_*/dict.txt

@@ -63,9 +63,6 @@ endforeach(f)
 ADD_EXECUTABLE(gen_patterns src/gen_patterns.cpp)
 TARGET_LINK_LIBRARIES(gen_patterns sdsl divsufsort divsufsort64 pthread)
 
-ADD_EXECUTABLE(gen_patterns_int src/gen_patterns_int.cpp)
-TARGET_LINK_LIBRARIES(gen_patterns_int sdsl divsufsort divsufsort64 pthread)
-
 ADD_EXECUTABLE(convert2surf src/convert2surf.cpp)
 TARGET_LINK_LIBRARIES(convert2surf sdsl)
 

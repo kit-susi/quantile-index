@@ -5,7 +5,7 @@
 * `build/release` + `build/debug`: Release/Debug build
 * `collections`: contains collection data; each collection in its own subdirectory.
 * `external`: Contains external libraries
-* `external/sdsl-lite`: Mirror of git@github.com:niklasb/susi-sdsl-lite master
+* `external/sdsl-lite`: Mirror of git@github.com:kit-susi/sdsl-lite master
 * `include/surf`: Contains headers.
 * `src`: Contains surf sources.
   - `surf_index.cpp` - Build an index
@@ -19,8 +19,8 @@
 
 ## Installation
 
-    $ git clone git@github.com:niklasb/susi.git susie
-    $ cd susie
+    $ git clone git@github.com:kit-susi/susi.git susi
+    $ cd susi
     $ git submodule init
     $ git submodule update --recursive
 
@@ -40,7 +40,7 @@ builds will live in `build/release` and `build/debug`, respectively.
 ## Keeping `external/sdsl-lite/` up to date
 
 Use the shell script `scripts/sdsl.sh`. We are mirroring
-git@github.com:niklasb/susi-sdsl-lite.git (branch master) in
+git@github.com:kit-susi/sdsl-lite.git (branch master) in
 subtree `external/sdsl-lite/`. See
 [https://git-scm.com/book/en/v1/Git-Tools-Subtree-Merging](subtree merging)
 for an overview over the subtree merging workflow.

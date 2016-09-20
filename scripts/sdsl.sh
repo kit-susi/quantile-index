@@ -3,14 +3,16 @@
 # Usage:
 #
 # scripts/sdsl.sh pull [branch]
-#   Pull from the given branch in git@github.com:niklasb/susi-sdsl-lite.git
+#   Pull from the given branch in git@github.com:kit-susi/sdsl-lite.git
 #   into subtree /external/sdsl-lite/
 #   (branch defaults to master)
 #
 # scripts/sdsl.sh push [branch]
 #   Push changes in subtree /external/sdsl-lite/ to
-#   the given branch in git@github.com:niklasb/susi-sdsl-lite.git
+#   the given branch in git@github.com:kit-susi/sdsl-lite.git
 #   (branch defaults to master)
+
+upstream=git@github.com:kit-susi/sdsl-lite.git
 
 set -e
 if [[ ( "$1" != "pull" && "$1" != "push" ) || $# > 2 ]]; then
@@ -37,7 +39,7 @@ fi
 # Add sdsl remote if it does not exist
 if ! git remote | egrep '^sdsl$' &>/dev/null; then
   set -x
-  git remote add sdsl git@github.com:niklasb/susi-sdsl-lite.git
+  git remote add sdsl "$upstream"
   set +x
 fi
 

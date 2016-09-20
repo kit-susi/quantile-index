@@ -90,7 +90,6 @@ public:
         load_from_cache(max_len, surf::KEY_MAXDOCLEN, cc);
 
         cst_type cst;
-
         load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
 
         string d_file = cache_file_name(surf::KEY_DARRAY, cc);

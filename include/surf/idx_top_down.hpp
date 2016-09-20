@@ -8,7 +8,8 @@ namespace surf {
 template<typename t_csa,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
-         typename t_border_select = typename t_border::select_1_type>
+         typename t_border_select = typename t_border::select_1_type, 
+         int LEVELS = 10>
 class idx_top_down
     : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
 
@@ -78,12 +79,17 @@ class idx_top_down
 template<typename t_csa,
          typename t_border,
          typename t_border_rank,
-         typename t_border_select>
+         typename t_border_select,
+         int LEVELS>
 void construct(idx_top_down<t_csa,
                t_border, t_border_rank,
-               t_border_select>& idx,
+               t_border_select,
+               LEVELS>& idx,
                const std::string&, sdsl::cache_config& cc, uint8_t num_bytes) {
     using t_wtd = WTD_TYPE;
+    using cst_type =  sdsl::cst_sct3<t_csa, sdsl::lcp_dac<>, sdsl::bp_support_sada<>, sdsl::bit_vector, sdsl::rank_support_v<>, sdsl::select_support_mcl<>>;
+    using node_type = typename cst_type::node_type;
+    
     cout << "...CSA" << endl; // CSA to get the lex. range
     if (!cache_file_exists<t_csa>(surf::KEY_CSA, cc))
     {
@@ -105,8 +111,7 @@ void construct(idx_top_down<t_csa,
     cout << "...DOC_BORDER" << endl;
     if (!cache_file_exists<t_border>(surf::KEY_DOCBORDER, cc) or
             !cache_file_exists<t_border_rank>(surf::KEY_DOCBORDER_RANK, cc) or
-            !cache_file_exists<t_border_select>(surf::KEY_DOCBORDER_SELECT, cc))
-    {
+            !cache_file_exists<t_border_select>(surf::KEY_DOCBORDER_SELECT, cc)) {
         bit_vector doc_border;
         load_from_cache(doc_border, surf::KEY_DOCBORDER, cc);
         t_border sd_doc_border(doc_border);
@@ -115,6 +120,78 @@ void construct(idx_top_down<t_csa,
         store_to_cache(doc_border_rank, surf::KEY_DOCBORDER_RANK, cc, true);
         t_border_select doc_border_select(&sd_doc_border);
         store_to_cache(doc_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
+    }
+    cout << "...TMPCST" << endl;
+    {
+        if (!cache_file_exists(conf::KEY_SA, cc)) {
+            construct_sa<t_csa::alphabet_type::int_width>(cc);
+        }
+        register_cache_file(conf::KEY_SA, cc);
+        if (!cache_file_exists(conf::KEY_LCP, cc)) {
+            if (t_csa::alphabet_type::int_width == 8) {
+                cout << "byte lcp construct" << endl;
+                construct_lcp_semi_extern_PHI(cc);
+            } else {
+                cout << "int lcp construct" << endl;
+                construct_lcp_PHI<t_csa::alphabet_type::int_width>(cc);
+            }
+        }
+        register_cache_file(conf::KEY_LCP, cc);
+        if (!cache_file_exists<cst_type>(KEY_TMPCST, cc)) {
+            auto event = memory_monitor::event("construct cst");
+            cst_type cst = cst_type(cc);
+            store_to_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
+        }
+    }
+    cout << "...C" << endl;
+    if (!cache_file_exists(surf::KEY_C, cc)) {
+        construct_doc_cnt<t_csa::alphabet_type::int_width>(cc);
+        uint64_t doc_cnt = 0;
+        load_from_cache(doc_cnt, KEY_DOCCNT, cc);
+        cout << "doc_cnt = " << doc_cnt << endl;
+        string d_file = cache_file_name(surf::KEY_DARRAY, cc);
+        int_vector_buffer<> D(d_file);
+        cout << "n=" << D.size() << endl;
+        int_vector<> C(D.size(), 0, bits::hi(D.size()) + 1);
+        int_vector<> last_occ(doc_cnt + 1, D.size(), bits::hi(D.size()) + 1);
+        for (size_t i = 0; i < D.size(); ++i) {
+            uint64_t d = D[i];
+            C[i] = last_occ[d];
+            last_occ[d] = i;
+        }
+        util::bit_compress(C);
+        store_to_file(C, cache_file_name(surf::KEY_C, cc));
+    }
+    cout << "...TAILS" << endl;
+    {
+        cst_type cst;
+        t_wtd wtd;
+        int_vector<> last_occ;
+        load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
+        load_from_file(wtd, cache_file_name<t_wtd>(surf::KEY_WTD, cc));
+        load_from_file(last_occ, cache_file_name(surf::KEY_C, cc)); 
+        bit_vector bv(LEVELS * wtd.size(), 0); // Tails plain bv.
+        auto add_lca = [&](uint64_t u, uint64_t v) {
+                if (u < wtd.size() && v < wtd.size()) { // Check if exists.
+                    node_type uu = cst.select_leaf(u+1);
+                    node_type vv = cst.select_leaf(v+1);
+                    uint64_t depth = cst.depth(cst.lca(uu,vv));
+                    if (depth < LEVELS) {
+                        bv[depth*wtd.size() + u] = 1; 
+                        bv[depth*wtd.size() + v] = 1; 
+                    }
+                }
+        };
+        for (uint64_t pos = 0; pos < wtd.size(); pos++) {
+                add_lca(last_occ[pos], pos);
+        }
+        // Print bv for debug.
+        if (bv.size() < 1000) {
+            for (size_t i = 0; i < bv.size(); i++) {
+                if (i % wtd.size() == 0) cout << endl;
+                cout << bv[i];
+            } cout << endl;
+        }
     }
 }
 } // namespace surf

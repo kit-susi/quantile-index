@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace surf{
+namespace surf {
 
 const std::string TEXT_FILENAME = "text_int_SURF.sdsl";
 const std::string TEXT_FILENAME_BYTE = "text_SURF.sdsl";
@@ -85,6 +85,7 @@ std::vector<std::string> storage_keys = {
     KEY_U,
     KEY_WTU,
     KEY_CSA,
+    KEY_TAILS,
     sdsl::conf::KEY_TEXT,
     sdsl::conf::KEY_TEXT_INT,
     sdsl::conf::KEY_SA,

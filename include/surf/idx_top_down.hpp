@@ -8,14 +8,14 @@ namespace surf {
 template<typename t_csa,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
-         typename t_border_select = typename t_border::select_1_type, 
+         typename t_border_select = typename t_border::select_1_type,
          int LEVELS = 10,
          typename t_tails = sdsl::hyb_sd_vector<>,
          typename t_tails_select = typename t_tails::select_1_type>
 class idx_top_down
     : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
 
-  public:
+public:
     typedef t_csa                                      csa_type;
     typedef t_border                                   border_type;
     typedef t_border_rank                              border_rank_type;
@@ -26,7 +26,7 @@ class idx_top_down
     typedef typename t_csa::alphabet_category          alphabet_category;
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
 
-  private:
+private:
     csa_type           m_csa;
     border_type        m_border;
     border_rank_type   m_border_rank;
@@ -34,12 +34,12 @@ class idx_top_down
     tails_type         m_tails;
     tails_select_type  m_tails_select;
 
-  public:
+public:
     std::unique_ptr<typename topk_interface::iter> topk(
-            size_t k,
-            const typename topk_interface::token_type* begin,
-            const typename topk_interface::token_type* end,
-            bool multi_occ = false, bool only_match = false) override {
+        size_t k,
+        const typename topk_interface::token_type* begin,
+        const typename topk_interface::token_type* end,
+        bool multi_occ = false, bool only_match = false) override {
         std::cerr << "Not implemented yet" << std::endl;
         abort();
     }
@@ -80,12 +80,12 @@ class idx_top_down
     }
 
     void mem_info()const {
-        std::cout << sdsl::size_in_bytes(m_csa) + 
-                sdsl::size_in_bytes(m_border) + 
-                sdsl::size_in_bytes(m_border_rank) +
-                sdsl::size_in_bytes(m_border_select) << ";"; // CSA
-        std::cout << sdsl::size_in_bytes(m_tails) + 
-                     sdsl::size_in_bytes(m_tails_select) << ";"; // TAILS
+        std::cout << sdsl::size_in_bytes(m_csa) +
+                  sdsl::size_in_bytes(m_border) +
+                  sdsl::size_in_bytes(m_border_rank) +
+                  sdsl::size_in_bytes(m_border_select) << ";"; // CSA
+        std::cout << sdsl::size_in_bytes(m_tails) +
+                  sdsl::size_in_bytes(m_tails_select) << ";"; // TAILS
     }
 };
 
@@ -108,7 +108,7 @@ void construct(idx_top_down<t_csa,
     using node_type = typename cst_type::node_type;
     using tails_type = t_tails;
     using tails_select_type = t_tails_select;
-    
+
     cout << "...CSA" << endl; // CSA to get the lex. range
     if (!cache_file_exists<t_csa>(surf::KEY_CSA, cc))
     {
@@ -182,34 +182,39 @@ void construct(idx_top_down<t_csa,
         store_to_file(C, cache_file_name(surf::KEY_C, cc));
     }
     cout << "...TAILS" << endl;
-    {
+    const string key_tails = surf::KEY_TAILS + std::to_string(LEVELS);
+    if (!cache_file_exists<tails_type>(key_tails, cc)) {
         cst_type cst;
         t_wtd wtd;
         int_vector<> last_occ;
+        // Loading files.
         load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
         load_from_file(wtd, cache_file_name<t_wtd>(surf::KEY_WTD, cc));
-        load_from_file(last_occ, cache_file_name(surf::KEY_C, cc)); 
+        load_from_file(last_occ, cache_file_name(surf::KEY_C, cc));
         bit_vector bv(LEVELS * wtd.size(), 0); // Tails plain bv.
+
         auto add_lca = [&](uint64_t u, uint64_t v) {
-                if (u < wtd.size() && v < wtd.size()) { // Check if exists.
-                    node_type uu = cst.select_leaf(u+1);
-                    node_type vv = cst.select_leaf(v+1);
-                    uint64_t depth = cst.depth(cst.lca(uu,vv));
-                    if (depth < LEVELS) {
-                        bv[depth*wtd.size() + u] = 1; 
-                        bv[depth*wtd.size() + v] = 1; 
-                    }
+            if (u < wtd.size() && v < wtd.size()) { // Check if exists.
+                node_type uu = cst.select_leaf(u + 1);
+                node_type vv = cst.select_leaf(v + 1);
+                uint64_t depth = cst.depth(cst.lca(uu, vv));
+                if (depth < LEVELS) {
+                    bv[depth * wtd.size() + u] = 1;
+                    bv[depth * wtd.size() + v] = 1;
                 }
+            }
         };
         for (uint64_t pos = 0; pos < wtd.size(); pos++) {
-                add_lca(last_occ[pos], pos);
+            add_lca(last_occ[pos], pos);
         }
-        tails_type tails(bv);
-        tails_select_type tails_select(&tails);
-        store_to_cache(tails, surf::KEY_TAILS + std::to_string(LEVELS), cc, true); 
-        store_to_cache(tails_select, surf::KEY_TAILS_SELECT + std::to_string(LEVELS), cc, true); 
-        // Print bv for debug.
-        if (bv.size() < 1000) {
+
+        {   // Building and writing tails bv in correct format.
+            tails_type tails(bv);
+            tails_select_type tails_select(&tails);
+            store_to_cache(tails, key_tails, cc, true);
+            store_to_cache(tails_select, surf::KEY_TAILS_SELECT + std::to_string(LEVELS), cc, true);
+        }
+        if (bv.size() < 1000) { // Print bv for debug.
             for (size_t i = 0; i < bv.size(); i++) {
                 if (i % wtd.size() == 0) cout << endl;
                 cout << bv[i];

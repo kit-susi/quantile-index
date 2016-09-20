@@ -30,7 +30,7 @@ usage(char* program)
     printf("  -c <collection directory>  : the directory the collection is stored.\n");
     printf("  -m <pattern length>        : the  pattern length.\n");
     printf("  -x <number of patterns>    : generate x distinct patterns.\n");
-    printf("  -o <occurences>            : only return ngrams that are sampled at least once each X samples. 0 = disable\n");
+    printf("  -o <occurences>            : only return ngrams that are sampled at least once each X samples. 0 = disable (assertion o >= n)\n");
     printf("  -n <ngram samples>         : how many ngrams to sample if -o is given\n");
     printf("  -s <random seed>\n");
     exit(EXIT_FAILURE);
@@ -80,9 +80,11 @@ parse_args(int argc,char* const argv[])
                 usage(argv[0]);
         }
     }
-    if(args.ngram_samples < args.min_sampling) args.min_sampling = 0;
     if (args.collection_dir=="" || args.pat_len==0 || args.pat_cnt==0) {
         std::cerr << "Missing command line parameters.\n";
+        usage(argv[0]);
+    } else if(args.ngram_samples < args.min_sampling) {
+        std::cerr << "o should be greater then n.\n";
         usage(argv[0]);
     }
     return args;
@@ -146,7 +148,6 @@ int find_ngrams(T& text_buf, cmdargs_t& args) {
 		vector<S> ngrams;
 		ngrams.reserve(args.pat_cnt);
 		auto threshold = args.ngram_samples / args.min_sampling;
-		std::cout << threshold << std::endl;
 		for (const auto& it : ngram_counts)
 			if (it.second >= threshold)
 				ngrams.push_back(ngram_storage[it.first]);

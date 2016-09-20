@@ -156,7 +156,7 @@ int find_ngrams(T& text_buf, cmdargs_t& args) {
 		}
 		for (size_t i = 0; i < args.pat_cnt; ++i)
 			for(size_t j = 0; j < ngrams[i].size(); ++j)
-				cout << ngrams[i][j] << ((j+1 == ngrams[i].size()) ? "\n" : "");
+				cout << ngrams[i][j] << ((j+1 == ngrams[i].size()) ? "\n" : (args.int_collection ? " " : ""));
 	} else {
 		string_vector_hash_fn h; vector<S> results;
 		unordered_map<size_t,bool> vis;
@@ -168,7 +168,7 @@ int find_ngrams(T& text_buf, cmdargs_t& args) {
 		}
 		for (const S& x: results)
 			for(size_t j = 0; j < x.size(); ++j)
-				cout << x[j] << ((j+1 == x.size()) ? "\n" : "");
+				cout << x[j] << ((j+1 == x.size()) ? "\n" : (args.int_collection ? " " : ""));
 	}
 	
 	return EXIT_SUCCESS;

@@ -9,7 +9,9 @@ template<typename t_csa,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
          typename t_border_select = typename t_border::select_1_type, 
-         int LEVELS = 10>
+         int LEVELS = 10,
+         typename t_tails = sdsl::hyb_sd_vector<>,
+         typename t_tails_select = typename t_tails::select_1_type>
 class idx_top_down
     : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
 
@@ -18,6 +20,8 @@ class idx_top_down
     typedef t_border                                   border_type;
     typedef t_border_rank                              border_rank_type;
     typedef t_border_select                            border_select_type;
+    typedef t_tails                                    tails_type;
+    typedef t_tails_select                             tails_select_type;
     using size_type = sdsl::int_vector<>::size_type;
     typedef typename t_csa::alphabet_category          alphabet_category;
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
@@ -27,6 +31,8 @@ class idx_top_down
     border_type        m_border;
     border_rank_type   m_border_rank;
     border_select_type m_border_select;
+    tails_type         m_tails;
+    tails_select_type  m_tails_select;
 
   public:
     std::unique_ptr<typename topk_interface::iter> topk(
@@ -53,6 +59,9 @@ class idx_top_down
         m_border_rank.set_vector(&m_border);
         load_from_cache(m_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
         m_border_select.set_vector(&m_border);
+        load_from_cache(m_tails, surf::KEY_TAILS + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_tails_select, surf::KEY_TAILS_SELECT + std::to_string(LEVELS), cc, true);
+        m_tails_select.set_vector(&m_tails);
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
@@ -64,6 +73,8 @@ class idx_top_down
         written_bytes += m_border.serialize(out, child, "BORDER");
         written_bytes += m_border_rank.serialize(out, child, "BORDER_RANK");
         written_bytes += m_border_select.serialize(out, child, "BORDER_SELECT");
+        written_bytes += m_tails.serialize(out, child, "TAILS");
+        written_bytes += m_tails_select.serialize(out, child, "TAILS_SELECT");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -72,7 +83,9 @@ class idx_top_down
         std::cout << sdsl::size_in_bytes(m_csa) + 
                 sdsl::size_in_bytes(m_border) + 
                 sdsl::size_in_bytes(m_border_rank) +
-                sdsl::size_in_bytes(m_border_select)<< ";"; // CSA
+                sdsl::size_in_bytes(m_border_select) << ";"; // CSA
+        std::cout << sdsl::size_in_bytes(m_tails) + 
+                     sdsl::size_in_bytes(m_tails_select) << ";"; // TAILS
     }
 };
 
@@ -80,15 +93,21 @@ template<typename t_csa,
          typename t_border,
          typename t_border_rank,
          typename t_border_select,
-         int LEVELS>
+         int LEVELS,
+         typename t_tails,
+         typename t_tails_select>
 void construct(idx_top_down<t_csa,
                t_border, t_border_rank,
                t_border_select,
-               LEVELS>& idx,
+               LEVELS,
+               t_tails,
+               t_tails_select>& idx,
                const std::string&, sdsl::cache_config& cc, uint8_t num_bytes) {
     using t_wtd = WTD_TYPE;
     using cst_type =  sdsl::cst_sct3<t_csa, sdsl::lcp_dac<>, sdsl::bp_support_sada<>, sdsl::bit_vector, sdsl::rank_support_v<>, sdsl::select_support_mcl<>>;
     using node_type = typename cst_type::node_type;
+    using tails_type = t_tails;
+    using tails_select_type = t_tails_select;
     
     cout << "...CSA" << endl; // CSA to get the lex. range
     if (!cache_file_exists<t_csa>(surf::KEY_CSA, cc))
@@ -185,6 +204,10 @@ void construct(idx_top_down<t_csa,
         for (uint64_t pos = 0; pos < wtd.size(); pos++) {
                 add_lca(last_occ[pos], pos);
         }
+        tails_type tails(bv);
+        tails_select_type tails_select(&tails);
+        store_to_cache(tails, surf::KEY_TAILS + std::to_string(LEVELS), cc, true); 
+        store_to_cache(tails_select, surf::KEY_TAILS_SELECT + std::to_string(LEVELS), cc, true); 
         // Print bv for debug.
         if (bv.size() < 1000) {
             for (size_t i = 0; i < bv.size(); i++) {

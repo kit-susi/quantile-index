@@ -11,6 +11,7 @@ template<typename t_csa,
          typename t_border_select = typename t_border::select_1_type,
          int LEVELS = 10,
          typename t_tails = sdsl::hyb_sd_vector<>,
+         typename t_tails_rank = typename t_tails::rank_1_type,
          typename t_tails_select = typename t_tails::select_1_type>
 class idx_top_down
     : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
@@ -21,6 +22,7 @@ public:
     typedef t_border_rank                              border_rank_type;
     typedef t_border_select                            border_select_type;
     typedef t_tails                                    tails_type;
+    typedef t_tails_rank                               tails_rank_type;
     typedef t_tails_select                             tails_select_type;
     using size_type = sdsl::int_vector<>::size_type;
     typedef typename t_csa::alphabet_category          alphabet_category;
@@ -32,7 +34,9 @@ private:
     border_rank_type   m_border_rank;
     border_select_type m_border_select;
     tails_type         m_tails;
+    tails_rank_type    m_tails_rank;
     tails_select_type  m_tails_select;
+    int_vector<>       m_weights;
 
 public:
     std::unique_ptr<typename topk_interface::iter> topk(
@@ -60,8 +64,11 @@ public:
         load_from_cache(m_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
         m_border_select.set_vector(&m_border);
         load_from_cache(m_tails, surf::KEY_TAILS + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_tails_rank, surf::KEY_TAILS_RANK + std::to_string(LEVELS), cc, true);
         load_from_cache(m_tails_select, surf::KEY_TAILS_SELECT + std::to_string(LEVELS), cc, true);
+        m_tails_rank.set_vector(&m_tails);
         m_tails_select.set_vector(&m_tails);
+        load_from_cache(m_weights, surf::KEY_WEIGHTS + std::to_string(LEVELS), cc);
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
@@ -73,8 +80,9 @@ public:
         written_bytes += m_border.serialize(out, child, "BORDER");
         written_bytes += m_border_rank.serialize(out, child, "BORDER_RANK");
         written_bytes += m_border_select.serialize(out, child, "BORDER_SELECT");
-        written_bytes += m_tails.serialize(out, child, "TAILS");
+        written_bytes += m_tails_rank.serialize(out, child, "TAILS_RANK");
         written_bytes += m_tails_select.serialize(out, child, "TAILS_SELECT");
+        written_bytes += m_weights.serialize(out, child, "WEIGHTS");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -85,7 +93,9 @@ public:
                   sdsl::size_in_bytes(m_border_rank) +
                   sdsl::size_in_bytes(m_border_select) << ";"; // CSA
         std::cout << sdsl::size_in_bytes(m_tails) +
+                  sdsl::size_in_bytes(m_tails_rank) <<
                   sdsl::size_in_bytes(m_tails_select) << ";"; // TAILS
+        std::cout << sdsl::size_in_bytes(m_weights) << ";";
     }
 };
 
@@ -95,18 +105,21 @@ template<typename t_csa,
          typename t_border_select,
          int LEVELS,
          typename t_tails,
+         typename t_tails_rank,
          typename t_tails_select>
 void construct(idx_top_down<t_csa,
                t_border, t_border_rank,
                t_border_select,
                LEVELS,
                t_tails,
+               t_tails_rank,
                t_tails_select>& idx,
                const std::string&, sdsl::cache_config& cc, uint8_t num_bytes) {
     using t_wtd = WTD_TYPE;
     using cst_type =  sdsl::cst_sct3<t_csa, sdsl::lcp_dac<>, sdsl::bp_support_sada<>, sdsl::bit_vector, sdsl::rank_support_v<>, sdsl::select_support_mcl<>>;
     using node_type = typename cst_type::node_type;
     using tails_type = t_tails;
+    using tails_rank_type = t_tails_rank;
     using tails_select_type = t_tails_select;
 
     cout << "...CSA" << endl; // CSA to get the lex. range
@@ -183,42 +196,130 @@ void construct(idx_top_down<t_csa,
     }
     cout << "...TAILS" << endl;
     const string key_tails = surf::KEY_TAILS + std::to_string(LEVELS);
+    const string key_tails_rank = surf::KEY_TAILS_RANK + std::to_string(LEVELS);
+    const string key_tails_select = surf::KEY_TAILS_SELECT + std::to_string(LEVELS);
+    cst_type cst;
     if (!cache_file_exists<tails_type>(key_tails, cc)) {
-        cst_type cst;
-        t_wtd wtd;
         int_vector<> last_occ;
         // Loading files.
+        string d_file = cache_file_name(surf::KEY_DARRAY, cc);
+        int_vector_buffer<> D(d_file);
         load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
-        load_from_file(wtd, cache_file_name<t_wtd>(surf::KEY_WTD, cc));
         load_from_file(last_occ, cache_file_name(surf::KEY_C, cc));
-        bit_vector bv(LEVELS * wtd.size(), 0); // Tails plain bv.
+        bit_vector bv(LEVELS * D.size(), 0); // Tails plain bv.
 
         auto add_lca = [&](uint64_t u, uint64_t v) {
-            if (u < wtd.size() && v < wtd.size()) { // Check if exists.
+            if (u < D.size() && v < D.size()) { // Check if exists.
                 node_type uu = cst.select_leaf(u + 1);
                 node_type vv = cst.select_leaf(v + 1);
                 uint64_t depth = cst.depth(cst.lca(uu, vv));
                 if (depth < LEVELS) {
-                    bv[depth * wtd.size() + u] = 1;
-                    bv[depth * wtd.size() + v] = 1;
+                    //bv[depth * D.size() + u] = 1;
+                    bv[depth * D.size() + v] = 1;
                 }
             }
         };
-        for (uint64_t pos = 0; pos < wtd.size(); pos++) {
+        for (uint64_t pos = 0; pos < D.size(); pos++) {
             add_lca(last_occ[pos], pos);
         }
-
+        {   // Add missing ones in bv.
+            cout << "Add missing ones." << endl;
+            std::unordered_set<uint64_t> doc_set;
+            auto add_missing_ones = [&](node_type v) {
+                uint64_t depth = cst.depth(v);
+                // Find all doc at node v.
+                for (size_t i = v.i; i < v.j; ++i) {
+                    if (bv[depth * D.size() + i])
+                        doc_set.insert(D[i]);
+                }
+                // Mark first occurence of docs.
+                size_t i = v.i;
+                while (!doc_set.empty()) {
+                    if (doc_set.count(D[i]) == 1) {
+                        assert(!bv[depth * D.size() + i]);
+                        bv[depth * D.size() + i] = 1;
+                        doc_set.erase(D[i]);
+                    }
+                    ++i;
+                }
+            };
+            // DFS.
+            std::stack<node_type> s;
+            s.push(cst.root());
+            while (!s.empty()) {
+                auto v = s.top();
+                s.pop();
+                for (const auto u : cst.children(v)) {
+                    if (cst.depth(u) < LEVELS)
+                        s.push(u);
+                }
+                add_missing_ones(v);
+            }
+        }
         {   // Building and writing tails bv in correct format.
             tails_type tails(bv);
+            tails_rank_type tails_rank(&tails);
             tails_select_type tails_select(&tails);
             store_to_cache(tails, key_tails, cc, true);
-            store_to_cache(tails_select, surf::KEY_TAILS_SELECT + std::to_string(LEVELS), cc, true);
+            store_to_cache(tails_rank, key_tails_rank, cc, true);
+            store_to_cache(tails_select, key_tails_select, cc, true);
         }
-        if (bv.size() < 1000) { // Print bv for debug.
-            for (size_t i = 0; i < bv.size(); i++) {
-                if (i % wtd.size() == 0) cout << endl;
-                cout << bv[i];
-            } cout << endl;
+    }
+    cout << "...weights" << endl;
+    const string key_weights = cache_file_name(surf::KEY_WEIGHTS +
+                               std::to_string(LEVELS), cc);
+    if (!cache_file_exists<tails_type>(key_weights, cc)) {
+        using std::tuple;
+        using std::make_tuple;
+        using std::get;
+        uint64_t output_count = 0;
+        t_wtd wtd;
+        cst_type cst;
+        tails_type tails;
+        tails_rank_type tails_rank;
+        tails_select_type tails_select;
+        load_from_file(wtd, cache_file_name<t_wtd>(surf::KEY_WTD, cc));
+        load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
+        load_from_file(tails, cache_file_name<tails_type>(key_tails, cc));
+        load_from_file(tails_rank, cache_file_name<tails_rank_type>(key_tails_rank, cc));
+        load_from_file(tails_select, cache_file_name<tails_select_type>(key_tails_select, cc));
+        tails_rank.set_vector(&tails);
+        tails_select.set_vector(&tails);
+        int_vector_buffer<> weights_buf(key_weights, std::ios::out, 1 << 20,
+                                        bits::hi(wtd.size()) + 1);
+        auto calc_weights_for_node = [&](node_type v, uint64_t depth) {
+            uint64_t offset = depth * wtd.size();
+            uint64_t s = tails_rank(v.i + offset);         // inclusive.
+            uint64_t e = tails_rank(v.j + 1 + offset); // exclusive.
+            //cout << s << " " << e << " " << depth << " " << v.i << " " << v.j << endl;
+            for (uint64_t i = s; i < e; ++i) {
+                uint64_t sa_start = tails_select(i + 1) - offset; // inclusive.
+                uint64_t sa_end = v.j + 1; // exclusive.
+                uint64_t d = wtd[sa_start];
+                for (uint64_t j = i + 1; j < e; ++j) {
+                    uint64_t pos = tails_select(j + 1) - offset;
+                    if (wtd[pos] == d) {
+                        sa_end = pos;
+                        break;
+                    }
+                }
+                assert(output_count == i);
+                weights_buf[output_count++] = wtd.rank(sa_end, d) - wtd.rank(sa_start, d);
+            }
+        };
+        using pq_type = tuple<uint64_t, node_type>;
+        std::priority_queue<pq_type, std::vector<pq_type>, std::greater<pq_type>> q;
+        q.push(make_tuple(0, cst.root()));
+        while (!q.empty()) {
+            auto v = get<1>(q.top());
+            uint64_t d = get<0>(q.top());
+            q.pop();
+            for (const auto u : cst.children(v)) {
+                uint64_t depth = cst.depth(u);
+                if (depth < LEVELS)
+                    q.push(make_tuple(depth, u));
+            }
+            calc_weights_for_node(v, d);
         }
     }
 }

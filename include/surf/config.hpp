@@ -56,6 +56,7 @@ const std::string KEY_CSA = "csa";
 const std::string KEY_MAXTF = "maxtf";
 const std::string KEY_MAXDOCLEN = "maxdoclen";
 const std::string KEY_TAILS = "tails";
+const std::string KEY_TAILS_RANK = "tails_rank";
 const std::string KEY_TAILS_SELECT = "tails_select";
 const std::string KEY_MAXCSTDEPTH = "maxcstdepth";
 const std::string KEY_WEIGHTS = "weights";

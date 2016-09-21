@@ -137,7 +137,7 @@ private:
         }
 
         typename topk_interface::snippet_type extract_snippet(const size_t k)
-                const override {
+        const override {
             size_type s = (m_doc_val.first == 0)
                           ?  0
                           : (m_idx->m_border_select(m_doc_val.first) + 1);
@@ -195,12 +195,12 @@ private:
 public:
 
     std::unique_ptr<typename topk_interface::iter> topk(
-            size_t k,
-            const typename topk_interface::token_type* begin,
-            const typename topk_interface::token_type* end,
-            bool multi_occ = false, bool only_match = false) override {
+        size_t k,
+        const typename topk_interface::token_type* begin,
+        const typename topk_interface::token_type* end,
+        bool multi_occ = false, bool only_match = false) override {
         return std::make_unique<top_k_iterator>(
-                this, begin, end, multi_occ, only_match);
+                   this, begin, end, multi_occ, only_match);
     }
 
     // Decode m_doc value at postion index by using offset encoding.
@@ -261,8 +261,8 @@ public:
         m_map_to_h = map_to_h_type(&m_h_select_1);
         load_from_cache(m_rmqc, surf::KEY_RMQC, cc, true);
         const auto key_w_and_p = (offset_encoding ?
-                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
-                             std::to_string(max_query_length);
+                                  surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
+                                 std::to_string(max_query_length);
         load_from_cache(m_k2treap, key_w_and_p, cc, true);
     }
 
@@ -362,7 +362,7 @@ void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_bor
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
     const auto key_w_and_p = (offset_encoding ?
-                             surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
+                              surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
                              std::to_string(max_query_length);
     const auto key_p = offset_encoding ?
                        surf::KEY_P_G : surf::KEY_P;
@@ -442,7 +442,6 @@ void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_bor
         }
 
         std::string P_file = cache_file_name(key_p, cc);
-
         int_vector_buffer<> P_buf(P_file, std::ios::out, 1 << 20,
                                   sdsl::bits::hi(max_depth) + 1);
 
@@ -579,11 +578,11 @@ void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_bor
             load_from_cache(P, key_p, cc);
             uint64_t removed_count = 0;
             for (size_t i = 0; i < P.size(); ++i)
-                    if (P[i] > max_query_length) {
-                            add_to_grid_bv[i] = 0;
-                            removed_count++;
-                    }
-            cout << "Removed "<<removed_count<<" from "<<P.size()<<" grid points\n";
+                if (P[i] > max_query_length) {
+                    add_to_grid_bv[i] = 0;
+                    removed_count++;
+                }
+            cout << "Removed " << removed_count << " from " << P.size() << " grid points\n";
         }
         {
             int_vector<> id_v(P_buf.size(), 0, bits::hi(P_buf.size()) + 1);

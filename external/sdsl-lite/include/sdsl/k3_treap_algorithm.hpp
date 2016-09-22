@@ -208,6 +208,10 @@ class top_k_iterator
             return m_valid;
         }
 
+        bool is_initialized() const {
+            return m_treap;
+        }
+
         //! Cast to a member function pointer
         // Test if there are more elements
         // Can be casted to bool but not implicit in an arithmetic experession

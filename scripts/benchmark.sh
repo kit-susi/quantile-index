@@ -12,6 +12,6 @@ if [[ $# > 0 ]]; then
 fi
 
 scripts/compare.py -c "$coll" $TXT_CONFIGS \
-    -b build/release -q 1000 -r 1
+    -b build/release -q 3000 -r 1
 scripts/compare.py -c "$coll" $INT_CONFIGS \
-    -b build/release -q 1000 -r 1
+    -b build/release -q 3000 -r 1

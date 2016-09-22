@@ -214,6 +214,7 @@ public:
     std::unique_ptr<typename topk_interface::iter> topk_intersect(
             size_t k, const typename topk_interface::intersect_query& query,
             bool multi_occ = false, bool only_match = false) override {
+        /*
         std::vector<k3_treap_ns::top_k_iterator<t_k2treap>> iters;
 
         m_results.clear();
@@ -236,6 +237,29 @@ public:
 
         for (auto it : k3_treap_intersection::k3_treap_intersection(iters, k))
             m_results.emplace_back(it.first, it.second);
+        return sort_topk_results<token_type>(&m_results);
+        */
+
+        std::vector<k3_treap_algos::xy_range> ranges;
+
+        m_results.clear();
+        for (const auto& q : query) {
+            uint64_t sp, ep;
+            bool valid = backward_search(m_csa, 0, m_csa.size() - 1,
+                                         q.first, q.second, sp, ep) > 0;
+            auto h_range = m_map_to_h(sp, ep);
+            if (!valid || empty(h_range))
+                return sort_topk_results<token_type>(&m_results);
+            uint64_t depth = q.second - q.first;
+            ranges.emplace_back(
+                    k3_treap_algos::xy_point{std::get<0>(h_range), 0},
+                    k3_treap_algos::xy_point{std::get<1>(h_range), depth - 1});
+        }
+
+        auto res = k3_treap_algos::topk_intersect3(m_k2treap, k, ranges);
+                //0, [&](uint64_t w0, uint64_t w) { return w0 + w + 1; });
+        for (auto it : res)
+            m_results.emplace_back(it.second, it.first);
         return sort_topk_results<token_type>(&m_results);
     }
 

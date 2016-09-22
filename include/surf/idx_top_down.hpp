@@ -2,9 +2,11 @@
 
 #include "sdsl/suffix_trees.hpp"
 #include "surf/topk_interface.hpp"
+#include "sdsl/rmq_succinct_sct.hpp"
 
 namespace surf {
 
+using rmq_type = rmq_succinct_sct<false>;
 template<typename t_csa,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
@@ -39,14 +41,55 @@ private:
     tails_rank_type    m_tails_rank;
     tails_select_type  m_tails_select;
     int_vector<>       m_weights;
+    rmq_type           m_weights_rmq;
 
 public:
 
     template <typename t_token>
     class top_down_topk_iterator : public topk_iterator<t_token> {
+    private:
+        const idx_top_down*m_idx;
+        uint64_t           m_sp;  // start point of lex interval
+        uint64_t           m_ep;  // end point of lex interval
+        bool               m_valid = false;
+        bool               m_multi_occ = false; // true, if document has to occur more than once
+        struct top_down_result {
+            double weight;
+            uint64_t document;
+            uint64_t tails_id;
+            // Interval in [in tails ids].
+            uint64_t start;
+            uint64_t end; // exclusive.
+            bool operator<(const top_down_result& obj) const {
+                return weight < obj.weight;
+            }
+        };
+        std::priority_queue<top_down_result> m_intervals;
     public:
-        //top_down_topk_iterator() = delete;
-        top_down_topk_iterator() {}
+        top_down_topk_iterator() = delete;
+        top_down_topk_iterator(const idx_top_down* idx,
+                       const typename topk_interface::token_type* begin,
+                       const typename topk_interface::token_type* end,
+                       bool multi_occ, bool only_match) : 
+                m_idx(idx), m_multi_occ(multi_occ) {
+            m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size() - 1,
+                                      begin, end, m_sp, m_ep) > 0;
+            m_valid &= !only_match;
+            if (m_valid) {
+                uint64_t offset = idx->m_csa.size();
+                // <= here instead of < ??? TODO
+                for (int64_t depth = 0; depth < (end - begin); ++depth) {
+                    top_down_result interval;
+                    interval.start = idx->m_tails_rank(depth*offset + m_sp);
+                    interval.end = idx->m_tails_rank(depth*offset + m_ep);
+                    interval.tails_id = idx->m_weights_rmq(interval.start, interval.end);
+                    interval.weight = idx->m_weights[interval.tails_id];
+                    // TODO set document.
+                    m_intervals.push(interval);     
+                }
+            }
+        }
+
 
         topk_result get() const {
             return topk_result(0, 0);
@@ -73,7 +116,8 @@ public:
         const token_type* end,
         bool multi_occ = false, bool only_match = false) override {
         return std::make_unique<top_down_topk_iterator<token_type>>(
-                   top_down_topk_iterator<token_type>());
+                   top_down_topk_iterator<token_type>(this,
+                           begin, end, multi_occ, only_match));
     }
 
     uint64_t doc_cnt() const {
@@ -97,6 +141,7 @@ public:
         m_tails_rank.set_vector(&m_tails);
         m_tails_select.set_vector(&m_tails);
         load_from_cache(m_weights, surf::KEY_WEIGHTS + std::to_string(LEVELS), cc);
+        load_from_cache(m_weights_rmq, surf::KEY_WEIGHTS_RMQ, cc, true);
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
@@ -111,6 +156,7 @@ public:
         written_bytes += m_tails_rank.serialize(out, child, "TAILS_RANK");
         written_bytes += m_tails_select.serialize(out, child, "TAILS_SELECT");
         written_bytes += m_weights.serialize(out, child, "WEIGHTS");
+        written_bytes += m_weights_rmq.serialize(out, child, "WEIGHTSRMQ");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -123,7 +169,8 @@ public:
         std::cout << sdsl::size_in_bytes(m_tails) +
                   sdsl::size_in_bytes(m_tails_rank) <<
                   sdsl::size_in_bytes(m_tails_select) << ";"; // TAILS
-        std::cout << sdsl::size_in_bytes(m_weights) << ";";
+        std::cout << sdsl::size_in_bytes(m_weights) +
+                sdsl::size_in_bytes(m_weights_rmq)<< ";"; // WEIGHTS
     }
 };
 
@@ -293,7 +340,7 @@ void construct(idx_top_down<t_csa,
         }
     }
 
-    const string key_next_occ = cache_file_name(surf::KEY_NEXT_OCC + std::to_string(LEVELS), cc);
+    const string key_next_occ = surf::KEY_NEXT_OCC + std::to_string(LEVELS);
     cout << "...next_occ" << endl;
     if (!cache_file_exists<tails_type>(key_next_occ, cc)) {
         uint64_t doc_cnt = 0;
@@ -303,7 +350,7 @@ void construct(idx_top_down<t_csa,
         tails_rank_type tails_rank;
         tails_select_type tails_select;
         load_from_file(D, d_file);
-        int_vector_buffer<> next_occ(key_next_occ, std::ios::out, 1 << 20,
+        int_vector_buffer<> next_occ(cache_file_name(key_next_occ, cc), std::ios::out, 1 << 20,
                                      bits::hi(D.size() + 1) + 1);
         load_from_file(tails, cache_file_name<tails_type>(key_tails, cc));
         load_from_file(tails_rank, cache_file_name<tails_rank_type>(key_tails_rank, cc));
@@ -340,7 +387,7 @@ void construct(idx_top_down<t_csa,
         load_from_file(tails, cache_file_name<tails_type>(key_tails, cc));
         load_from_file(tails_rank, cache_file_name<tails_rank_type>(key_tails_rank, cc));
         load_from_file(tails_select, cache_file_name<tails_select_type>(key_tails_select, cc));
-        load_from_file(next_occ, key_next_occ);
+        load_from_file(next_occ, cache_file_name(key_next_occ, cc));
         tails_rank.set_vector(&tails);
         tails_select.set_vector(&tails);
 
@@ -374,6 +421,13 @@ void construct(idx_top_down<t_csa,
             }
             calc_weights_for_node(v, d);
         }
+    }
+    if (!cache_file_exists<rmq_type>(surf::KEY_WEIGHTS_RMQ, cc)) {
+        cout << "Construct rmq." << endl;
+        int_vector<> weights;
+        load_from_file(weights, key_weights);
+        rmq_type rmq(&weights);
+        store_to_cache(rmq, surf::KEY_WEIGHTS_RMQ, cc, true);
     }
 }
 } // namespace surf

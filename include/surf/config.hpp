@@ -60,6 +60,7 @@ const std::string KEY_TAILS = "tails";
 const std::string KEY_TAILS_RANK = "tails_rank";
 const std::string KEY_TAILS_SELECT = "tails_select";
 const std::string KEY_MAXCSTDEPTH = "maxcstdepth";
+const std::string KEY_WEIGHTS_RMQ = "weightsrmq";
 const std::string KEY_WEIGHTS = "weights";
 const std::string KEY_WEIGHTS_G = "weights_g";
 const std::string KEY_W_AND_P = "W_and_P";
@@ -88,6 +89,8 @@ std::vector<std::string> storage_keys = {
     KEY_WTU,
     KEY_CSA,
     KEY_TAILS,
+    KEY_NEXT_OCC,
+    KEY_WEIGHTS_RMQ,
     sdsl::conf::KEY_TEXT,
     sdsl::conf::KEY_TEXT_INT,
     sdsl::conf::KEY_SA,

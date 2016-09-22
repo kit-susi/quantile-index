@@ -11,6 +11,7 @@ namespace surf {
 using topk_result = std::pair<uint64_t, double>;
 using topk_result_set = std::vector<topk_result>;
 
+
 template <typename t_token>
 struct topk_iterator {
     using token_type = t_token;

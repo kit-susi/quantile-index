@@ -29,6 +29,8 @@ public:
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
 
 private:
+    using token_type = typename topk_interface::token_type;
+
     csa_type           m_csa;
     border_type        m_border;
     border_rank_type   m_border_rank;
@@ -39,13 +41,39 @@ private:
     int_vector<>       m_weights;
 
 public:
+
+    template <typename t_token>
+    class top_down_topk_iterator : public topk_iterator<t_token> {
+    public:
+        //top_down_topk_iterator() = delete;
+        top_down_topk_iterator() {}
+
+        topk_result get() const {
+            return topk_result(0, 0);
+        }
+
+        bool done() const override {
+            return false;
+        }
+
+        void next() override {
+            // TODO implement.
+        }
+
+        std::vector<t_token> extract_snippet(const size_t k) const override {
+            // TODO implement
+            return {};
+        }
+    private:
+    };
+
     std::unique_ptr<typename topk_interface::iter> topk(
         size_t k,
-        const typename topk_interface::token_type* begin,
-        const typename topk_interface::token_type* end,
+        const token_type* begin,
+        const token_type* end,
         bool multi_occ = false, bool only_match = false) override {
-        std::cerr << "Not implemented yet" << std::endl;
-        abort();
+        return std::make_unique<top_down_topk_iterator<token_type>>(
+                   top_down_topk_iterator<token_type>());
     }
 
     uint64_t doc_cnt() const {
@@ -176,12 +204,12 @@ void construct(idx_top_down<t_csa,
         }
     }
     cout << "...C" << endl;
+    string d_file = cache_file_name(surf::KEY_DARRAY, cc);
     if (!cache_file_exists(surf::KEY_C, cc)) {
         construct_doc_cnt<t_csa::alphabet_type::int_width>(cc);
         uint64_t doc_cnt = 0;
         load_from_cache(doc_cnt, KEY_DOCCNT, cc);
         cout << "doc_cnt = " << doc_cnt << endl;
-        string d_file = cache_file_name(surf::KEY_DARRAY, cc);
         int_vector_buffer<> D(d_file);
         cout << "n=" << D.size() << endl;
         int_vector<> C(D.size(), 0, bits::hi(D.size()) + 1);
@@ -202,7 +230,6 @@ void construct(idx_top_down<t_csa,
     if (!cache_file_exists<tails_type>(key_tails, cc)) {
         int_vector<> last_occ;
         // Loading files.
-        string d_file = cache_file_name(surf::KEY_DARRAY, cc);
         int_vector_buffer<> D(d_file);
         load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
         load_from_file(last_occ, cache_file_name(surf::KEY_C, cc));
@@ -265,6 +292,35 @@ void construct(idx_top_down<t_csa,
             store_to_cache(tails_select, key_tails_select, cc, true);
         }
     }
+
+    const string key_next_occ = cache_file_name(surf::KEY_NEXT_OCC + std::to_string(LEVELS), cc);
+    cout << "...next_occ" << endl;
+    if (!cache_file_exists<tails_type>(key_next_occ, cc)) {
+        uint64_t doc_cnt = 0;
+        load_from_cache(doc_cnt, KEY_DOCCNT, cc);
+        int_vector<> D;
+        tails_type tails;
+        tails_rank_type tails_rank;
+        tails_select_type tails_select;
+        load_from_file(D, d_file);
+        int_vector_buffer<> next_occ(key_next_occ, std::ios::out, 1 << 20,
+                                     bits::hi(D.size() + 1) + 1);
+        load_from_file(tails, cache_file_name<tails_type>(key_tails, cc));
+        load_from_file(tails_rank, cache_file_name<tails_rank_type>(key_tails_rank, cc));
+        load_from_file(tails_select, cache_file_name<tails_select_type>(key_tails_select, cc));
+        tails_rank.set_vector(&tails);
+        tails_select.set_vector(&tails);
+        std::vector<uint64_t> cur_next_occ(doc_cnt, D.size());
+        uint64_t d = 0;
+        uint64_t num_arrows = tails_rank(LEVELS * D.size());
+        cout << "Num arrows:" << num_arrows << " " << D.size() << endl;
+        for (uint64_t i = num_arrows; i > 0; --i) {
+            d = D[tails_select(i) % D.size()];
+            next_occ[i - 1] = cur_next_occ[d];
+            cur_next_occ[d] = i; // one based!!
+        }
+        cout << "wrote next occ" << endl;
+    }
     cout << "...weights" << endl;
     const string key_weights = cache_file_name(surf::KEY_WEIGHTS +
                                std::to_string(LEVELS), cc);
@@ -278,31 +334,28 @@ void construct(idx_top_down<t_csa,
         tails_type tails;
         tails_rank_type tails_rank;
         tails_select_type tails_select;
+        int_vector<> next_occ;
         load_from_file(wtd, cache_file_name<t_wtd>(surf::KEY_WTD, cc));
         load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
         load_from_file(tails, cache_file_name<tails_type>(key_tails, cc));
         load_from_file(tails_rank, cache_file_name<tails_rank_type>(key_tails_rank, cc));
         load_from_file(tails_select, cache_file_name<tails_select_type>(key_tails_select, cc));
+        load_from_file(next_occ, key_next_occ);
         tails_rank.set_vector(&tails);
         tails_select.set_vector(&tails);
+
         int_vector_buffer<> weights_buf(key_weights, std::ios::out, 1 << 20,
                                         bits::hi(wtd.size()) + 1);
         auto calc_weights_for_node = [&](node_type v, uint64_t depth) {
             uint64_t offset = depth * wtd.size();
             uint64_t s = tails_rank(v.i + offset);         // inclusive.
             uint64_t e = tails_rank(v.j + 1 + offset); // exclusive.
-            //cout << s << " " << e << " " << depth << " " << v.i << " " << v.j << endl;
             for (uint64_t i = s; i < e; ++i) {
                 uint64_t sa_start = tails_select(i + 1) - offset; // inclusive.
                 uint64_t sa_end = v.j + 1; // exclusive.
                 uint64_t d = wtd[sa_start];
-                for (uint64_t j = i + 1; j < e; ++j) {
-                    uint64_t pos = tails_select(j + 1) - offset;
-                    if (wtd[pos] == d) {
-                        sa_end = pos;
-                        break;
-                    }
-                }
+                if (next_occ[i] <= e) // next_occ is one based.
+                    sa_end = tails_select(next_occ[i]) % wtd.size();
                 assert(output_count == i);
                 weights_buf[output_count++] = wtd.rank(sa_end, d) - wtd.rank(sa_start, d);
             }

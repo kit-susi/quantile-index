@@ -42,8 +42,8 @@ public:
     }
 
     std::unique_ptr<typename topk_interface::iter> topk(
-            size_t k, const token_type* begin, const token_type* end,
-            bool multi_occ = false, bool only_match = false) override {
+        size_t k, const token_type* begin, const token_type* end,
+        bool multi_occ = false, bool only_match = false) override {
         auto occs = locate(m_csa, begin, end);
 
         std::map<uint64_t, double> occs_by_doc;
@@ -60,8 +60,8 @@ public:
     }
 
     std::unique_ptr<typename topk_interface::iter> topk_intersect(
-            size_t k, const typename topk_interface::intersect_query& query,
-            bool multi_occ = false, bool only_match = false) override {
+        size_t k, const typename topk_interface::intersect_query& query,
+        bool multi_occ = false, bool only_match = false) override {
         std::map<uint64_t, double> by_doc;
 
         bool first = true;

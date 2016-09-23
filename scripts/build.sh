@@ -25,4 +25,11 @@ cmake -DCMAKE_BUILD_TYPE=$build_type ../..
 set +x
 
 set -x
-make -j16 "$@"
+echo "Building $@"
+for target in $@; do
+  make -j16 $target &
+done
+
+for job in `jobs -p`; do
+  wait $job
+done

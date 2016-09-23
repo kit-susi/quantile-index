@@ -87,16 +87,16 @@ public:
             m_valid &= !only_match;
             if (m_valid) {
                 uint64_t offset = idx->m_csa.size();
-                //std::cerr << "interval size: " << m_ep - m_sp+1<< endl;
+                std::cerr << "interval size: " << m_ep - m_sp+1<< endl;
                 // <= here instead of < ??? TODO
                 for (int64_t depth = 0; depth < (end - begin); ++depth) {
                     top_down_result interval;
                     interval.start = idx->m_tails_rank(depth*offset + m_sp);
                     interval.end = idx->m_tails_rank(depth*offset + m_ep+1);
-                    //std::cerr << interval.start << " " << interval.end << " " << interval.end - interval.start << endl;
-                    //std::cerr << "with weights: ";
-                    //for (int i = interval.start; i < interval.end; i++)
-                            //std::cerr << idx->m_weights[i] << " "; std::cerr << endl;
+                    std::cerr << interval.start << " " << interval.end << " " << interval.end - interval.start << endl;
+                    std::cerr << "with weights: ";
+                    for (int i = interval.start; i < interval.end; i++)
+                            std::cerr << idx->m_weights[i] << " "; std::cerr << endl;
                     if (interval.start < interval.end) {
                         init_interval(interval);
                         m_intervals.push(interval);     
@@ -393,7 +393,7 @@ void construct(idx_top_down<t_csa,
         load_from_file(tails_select, cache_file_name<tails_select_type>(key_tails_select, cc));
         tails_rank.set_vector(&tails);
         tails_select.set_vector(&tails);
-        std::vector<uint64_t> cur_next_occ(doc_cnt, D.size());
+        std::vector<uint64_t> cur_next_occ(doc_cnt, D.size()*LEVELS);
         uint64_t d = 0;
         uint64_t num_arrows = tails_rank(LEVELS * D.size());
         cout << "Num arrows:" << num_arrows << " " << D.size() << endl;
@@ -431,21 +431,17 @@ void construct(idx_top_down<t_csa,
             uint64_t offset = depth * wtd.size();
             uint64_t s = tails_rank(v.i + offset);         // inclusive.
             uint64_t e = tails_rank(v.j + 1 + offset); // exclusive.
-            cout << "depth " << depth << endl;
             for (uint64_t i = s; i < e; ++i) {
                 uint64_t sa_start = tails_select(i + 1) - offset; // inclusive.
                 uint64_t sa_end = v.j + 1; // exclusive.
                 uint64_t d = wtd[sa_start];
                 if (next_occ[i] <= e) // next_occ is one based.
                     sa_end = std::min(wtd.size(), tails_select(next_occ[i]) - offset);
-                cout << tails_select(next_occ[i]) - offset << endl;
                 assert(output_count == i);
-                cout << sa_start << " " << sa_end << endl;
                 uint64_t w = wtd.rank(sa_end, d) - wtd.rank(sa_start, d);
-                cout << w << "(" << d << ") ";
                 weights_buf[output_count++] = w;
+                //cout << depth << " " << d << " " << w << endl;
             }
-            cout << endl;
         };
         using pq_type = tuple<uint64_t, node_type>;
         std::priority_queue<pq_type, std::vector<pq_type>, std::greater<pq_type>> q;
@@ -465,8 +461,9 @@ void construct(idx_top_down<t_csa,
     if (!cache_file_exists<rmq_type>(surf::KEY_WEIGHTS_RMQ, cc)) {
         cout << "Construct rmq." << endl;
         int_vector<> weights;
-        load_from_file(weights, key_weights);
+        load_from_file(weights, cache_file_name(key_weights, cc));
         rmq_type rmq(&weights);
+        cout << "rmq_size: " << rmq.size() << endl;
         store_to_cache(rmq, surf::KEY_WEIGHTS_RMQ, cc, true);
     }
 }

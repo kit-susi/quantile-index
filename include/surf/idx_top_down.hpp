@@ -65,6 +65,16 @@ public:
             }
         };
         std::priority_queue<top_down_result> m_intervals;
+
+        void init_interval(top_down_result& interval) {
+            interval.tails_id = m_idx->m_weights_rmq(interval.start, interval.end-1);
+            assert(interval.tails_id >= interval.start && interval.tails_id < interval.end);
+            interval.weight = m_idx->m_weights[interval.tails_id];
+            // TODO compute document ids later.
+            uint64_t sa_pos = m_idx->m_tails_select(interval.tails_id+1) % m_idx->m_csa.size();
+            interval.document = m_idx->m_border_rank(m_idx->m_csa[sa_pos]);
+        }
+
     public:
         top_down_topk_iterator() = delete;
         top_down_topk_iterator(const idx_top_down* idx,
@@ -77,30 +87,56 @@ public:
             m_valid &= !only_match;
             if (m_valid) {
                 uint64_t offset = idx->m_csa.size();
+                //std::cerr << "interval size: " << m_ep - m_sp+1<< endl;
                 // <= here instead of < ??? TODO
                 for (int64_t depth = 0; depth < (end - begin); ++depth) {
                     top_down_result interval;
                     interval.start = idx->m_tails_rank(depth*offset + m_sp);
-                    interval.end = idx->m_tails_rank(depth*offset + m_ep);
-                    interval.tails_id = idx->m_weights_rmq(interval.start, interval.end);
-                    interval.weight = idx->m_weights[interval.tails_id];
-                    // TODO set document.
-                    m_intervals.push(interval);     
+                    interval.end = idx->m_tails_rank(depth*offset + m_ep+1);
+                    //std::cerr << interval.start << " " << interval.end << " " << interval.end - interval.start << endl;
+                    //std::cerr << "with weights: ";
+                    //for (int i = interval.start; i < interval.end; i++)
+                            //std::cerr << idx->m_weights[i] << " "; std::cerr << endl;
+                    if (interval.start < interval.end) {
+                        init_interval(interval);
+                        m_intervals.push(interval);     
+                    }
                 }
             }
         }
 
 
         topk_result get() const {
-            return topk_result(0, 0);
+            if (m_intervals.empty())
+                    abort();
+            return topk_result(m_intervals.top().document,
+                            m_intervals.top().weight);
         }
 
         bool done() const override {
-            return false;
+            return m_intervals.empty();
         }
 
         void next() override {
-            // TODO implement.
+            if (m_intervals.empty())
+                    abort();
+            auto t = m_intervals.top();  
+            m_intervals.pop();
+            top_down_result interval;
+            // Left side.
+            interval.start = t.start;
+            interval.end = t.tails_id;
+            if (interval.start < interval.end) {
+                    init_interval(interval);
+                    m_intervals.push(interval);
+            }
+            // Right side.
+            interval.start = t.tails_id+1;
+            interval.end = t.end;
+            if (interval.start < interval.end) {
+                    init_interval(interval);
+                    m_intervals.push(interval);
+            }
         }
 
         std::vector<t_token> extract_snippet(const size_t k) const override {
@@ -302,7 +338,7 @@ void construct(idx_top_down<t_csa,
             auto add_missing_ones = [&](node_type v) {
                 uint64_t depth = cst.depth(v);
                 // Find all doc at node v.
-                for (size_t i = v.i; i < v.j; ++i) {
+                for (size_t i = v.i; i <= v.j; ++i) {
                     if (bv[depth * D.size() + i])
                         doc_set.insert(D[i]);
                 }
@@ -351,7 +387,7 @@ void construct(idx_top_down<t_csa,
         tails_select_type tails_select;
         load_from_file(D, d_file);
         int_vector_buffer<> next_occ(cache_file_name(key_next_occ, cc), std::ios::out, 1 << 20,
-                                     bits::hi(D.size() + 1) + 1);
+                                     bits::hi(D.size() * LEVELS+ 1) + 1);
         load_from_file(tails, cache_file_name<tails_type>(key_tails, cc));
         load_from_file(tails_rank, cache_file_name<tails_rank_type>(key_tails_rank, cc));
         load_from_file(tails_select, cache_file_name<tails_select_type>(key_tails_select, cc));
@@ -366,7 +402,6 @@ void construct(idx_top_down<t_csa,
             next_occ[i - 1] = cur_next_occ[d];
             cur_next_occ[d] = i; // one based!!
         }
-        cout << "wrote next occ" << endl;
     }
     cout << "...weights" << endl;
     const string key_weights = surf::KEY_WEIGHTS + std::to_string(LEVELS);
@@ -396,15 +431,21 @@ void construct(idx_top_down<t_csa,
             uint64_t offset = depth * wtd.size();
             uint64_t s = tails_rank(v.i + offset);         // inclusive.
             uint64_t e = tails_rank(v.j + 1 + offset); // exclusive.
+            cout << "depth " << depth << endl;
             for (uint64_t i = s; i < e; ++i) {
                 uint64_t sa_start = tails_select(i + 1) - offset; // inclusive.
                 uint64_t sa_end = v.j + 1; // exclusive.
                 uint64_t d = wtd[sa_start];
                 if (next_occ[i] <= e) // next_occ is one based.
-                    sa_end = tails_select(next_occ[i]) % wtd.size();
+                    sa_end = std::min(wtd.size(), tails_select(next_occ[i]) - offset);
+                cout << tails_select(next_occ[i]) - offset << endl;
                 assert(output_count == i);
-                weights_buf[output_count++] = wtd.rank(sa_end, d) - wtd.rank(sa_start, d);
+                cout << sa_start << " " << sa_end << endl;
+                uint64_t w = wtd.rank(sa_end, d) - wtd.rank(sa_start, d);
+                cout << w << "(" << d << ") ";
+                weights_buf[output_count++] = w;
             }
+            cout << endl;
         };
         using pq_type = tuple<uint64_t, node_type>;
         std::priority_queue<pq_type, std::vector<pq_type>, std::greater<pq_type>> q;

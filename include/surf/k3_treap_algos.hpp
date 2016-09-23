@@ -527,6 +527,9 @@ struct range2 {
     bool empty() { return !m_iter; }
     uint64_t get_max() { return std::get<1>(*m_iter); }
     uint64_t get_max_z() { return std::get<0>(*m_iter)[2]; }
+
+    k3_treap_ns::point_type lo() const { return m_iter.m_p1; }
+    k3_treap_ns::point_type hi() const { return m_iter.m_p2; }
 };
 
 template <typename t_k3_treap>
@@ -599,11 +602,12 @@ topk_intersect3(const t_k3_treap& t, size_t k,
 
     while (d < inf) {
         //std::cerr << "d=" << d << " L=" << L << " U=" << U << std::endl;
-        //std::cerr << "total range queries = " << total << std::endl;
+        //std::cerr << "total splits = " << total_splits << std::endl;
+        //std::cerr << "total sizes = " << total_sizes << std::endl;
 
         //std::cerr << "vt = " << std::endl;
         //for (size_t i = 0 ; i < vt.size(); ++i)
-            //std::cerr << "   " << vt[i].m_lo[2] << " - " << vt[i].m_hi[2]
+            //std::cerr << "   " << vt[i].lo()[2] << " - " << vt[i].hi()[2]
                 //<< " / " << vt[i].get_max() << std::endl;
 
         while (U < L) {
@@ -621,11 +625,11 @@ topk_intersect3(const t_k3_treap& t, size_t k,
         for (size_t t = 0; t < ranges.size(); ++t) {
             assert(!vt[t].empty());
             //if (vt[t].is_leaf()) std::cerr << t << ":" << vt[t].get_max_z() << " ";
-            if (!vt[t].is_leaf() || vt[t].get_max_z() != d) {
-                // TODO better selection strategy?
-                if (t_shortest == none || vt[t].get_max() < vt[t_shortest].get_max())
-                    t_shortest = t;
-            }
+            if (vt[t].get_max_z() == d)
+                continue;
+            // TODO better selection strategy?
+            if (t_shortest == none || vt[t].get_max() < vt[t_shortest].get_max())
+                t_shortest = t;
         }
         //std::cerr << std::endl << "  t_shortest = " << t_shortest << std::endl;
         if (t_shortest == none) {
@@ -664,8 +668,6 @@ topk_intersect3(const t_k3_treap& t, size_t k,
             }
         }
     }
-    std::cerr << "total splits = " << total_splits << std::endl;
-    std::cerr << "total sizes = " << total_sizes << std::endl;
 
     return result.sorted_result();
 }

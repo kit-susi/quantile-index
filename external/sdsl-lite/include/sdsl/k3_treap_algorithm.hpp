@@ -78,6 +78,34 @@ overlap(const point_type& p1, const point_type& p2, const node_type& v)
            std::get<2>(p1) <= std::get<2>(v.p) + d and std::get<2>(p2) >= std::get<2>(v.p);
 }
 
+template <typename T>
+struct persistent_prio_queue {
+    std::shared_ptr<std::priority_queue<T>> m_pq;
+
+    persistent_prio_queue() : m_pq(std::make_shared<std::priority_queue<T>>()) {}
+    persistent_prio_queue(const persistent_prio_queue<T>& other) = default;
+    persistent_prio_queue& operator=(const persistent_prio_queue<T>&) = default;
+
+    void ensure_unique() {
+        if (!m_pq.unique())
+            m_pq = std::make_shared<std::priority_queue<T>>(*m_pq);
+    }
+
+    void push(const T& x) {
+        ensure_unique();
+        m_pq->push(x);
+    }
+
+    void pop() {
+        ensure_unique();
+        m_pq->pop();
+    }
+
+    bool empty() const { return m_pq->empty(); }
+    size_t size() const { return m_pq->size(); }
+    const T& top() const { return m_pq->top(); }
+};
+
 template<typename t_k3_treap>
 class top_k_iterator
 {
@@ -87,11 +115,9 @@ class top_k_iterator
         typedef void(*t_mfptr)();
         typedef std::tuple<point_type, uint64_t, node_type> t_point_val_node;
 
-    private:
-        typedef std::pair<node_type, bool> t_nt_b;
-
+    public:
         const t_k3_treap* m_treap = nullptr;
-        std::priority_queue<t_nt_b> m_pq;
+        std::priority_queue<node_type> m_pq;
         t_point_val_node m_point_val_node;
         point_type m_p1;
         point_type m_p2;
@@ -114,7 +140,7 @@ class top_k_iterator
             //std::cout << "constructing [" << m_p1[0] << "," << m_p1[1] << "," << m_p1[2] << "] [" <<
                                         //m_p2[0] << "," << m_p2[1] << "," << m_p2[2] << "] " << std::endl;
             if (m_treap->size() > 0) { // TODO: check this condition for nodes
-                m_pq.emplace(treap.root(), false);
+                m_pq.push(treap.root());
                 ++(*this);
             }
         }
@@ -175,36 +201,19 @@ class top_k_iterator
             while (!m_pq.empty()) {
                 //std::cout << "here????2" << std::endl;
 
-                auto v = std::get<0>(m_pq.top());
-                //std::cout << "node = " << v.max_p[0] << " , " << v.max_p[1] << "," << v.max_p[2] << std::endl;
-                auto is_contained = std::get<1>(m_pq.top());
-                //std::cout << "contained?" << is_contained << std::endl;
+                auto v = m_pq.top();
                 m_pq.pop();
-                if (is_contained) {
-                    auto nodes = m_treap->children(v);
-                    for (auto node : nodes)
-                        m_pq.emplace(node, true);
-                    m_point_val_node = t_point_val_node(v.max_p, v.max_v, v);
-                    m_valid = true;
-                    break;
-                } else {
-                    if (contained<t_k3_treap::k>(m_p1, m_p2, v)) {
-                        //std::cout << "It is contained" << std::endl;
-                        m_pq.emplace(v, true);
-                    } else if (overlap<t_k3_treap::k>(m_p1, m_p2, v)) {
-                        //std::cout << "overlapped" << std::endl;
-//                        m_valid = true;
-                        auto nodes = m_treap->children(v);
-                        for (auto node : nodes)
-                            if (overlap<t_k3_treap::k>(m_p1, m_p2, node))
-                                m_pq.emplace(node, false);
-                        if (contained(v.max_p, m_p1, m_p2)) {
-                            //std::cout << "here????4" << std::endl;
-                            m_point_val_node = t_point_val_node(v.max_p, v.max_v, v);
-                            //std::cout << "point val = " << std::get<0>(m_point_val_node)[0] << "," << std::get<0>(m_point_val_node)[1] << "," << std::get<0>(m_point_val_node)[2] << std::endl;
-                            m_valid = true;
-                            break;
-                        }
+
+                if (overlap<t_k3_treap::k>(m_p1, m_p2, v)) {
+                    for (auto w : m_treap->children(v))
+                        if (overlap<t_k3_treap::k>(m_p1, m_p2, w))
+                            m_pq.push(w);
+                    if (contained(v.max_p, m_p1, m_p2)) {
+                        //std::cout << "here????4" << std::endl;
+                        m_point_val_node = t_point_val_node(v.max_p, v.max_v, v);
+                        //std::cout << "point val = " << std::get<0>(m_point_val_node)[0] << "," << std::get<0>(m_point_val_node)[1] << "," << std::get<0>(m_point_val_node)[2] << std::endl;
+                        m_valid = true;
+                        break;
                     }
                 }
             }

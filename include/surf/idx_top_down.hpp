@@ -342,7 +342,7 @@ void construct(idx_top_down<t_csa,
 
     const string key_next_occ = surf::KEY_NEXT_OCC + std::to_string(LEVELS);
     cout << "...next_occ" << endl;
-    if (!cache_file_exists<tails_type>(key_next_occ, cc)) {
+    if (!cache_file_exists(key_next_occ, cc)) {
         uint64_t doc_cnt = 0;
         load_from_cache(doc_cnt, KEY_DOCCNT, cc);
         int_vector<> D;
@@ -369,9 +369,8 @@ void construct(idx_top_down<t_csa,
         cout << "wrote next occ" << endl;
     }
     cout << "...weights" << endl;
-    const string key_weights = cache_file_name(surf::KEY_WEIGHTS +
-                               std::to_string(LEVELS), cc);
-    if (!cache_file_exists<tails_type>(key_weights, cc)) {
+    const string key_weights = surf::KEY_WEIGHTS + std::to_string(LEVELS);
+    if (!cache_file_exists(key_weights, cc)) {
         using std::tuple;
         using std::make_tuple;
         using std::get;
@@ -391,8 +390,8 @@ void construct(idx_top_down<t_csa,
         tails_rank.set_vector(&tails);
         tails_select.set_vector(&tails);
 
-        int_vector_buffer<> weights_buf(key_weights, std::ios::out, 1 << 20,
-                                        bits::hi(wtd.size()) + 1);
+        int_vector_buffer<> weights_buf(cache_file_name(key_weights, cc),
+                        std::ios::out, 1 << 20, bits::hi(wtd.size()) + 1);
         auto calc_weights_for_node = [&](node_type v, uint64_t depth) {
             uint64_t offset = depth * wtd.size();
             uint64_t s = tails_rank(v.i + offset);         // inclusive.

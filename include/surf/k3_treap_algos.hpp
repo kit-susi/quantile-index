@@ -326,27 +326,24 @@ topk_intersect2(
 }
 
 
-uint64_t total=0;
+uint64_t total_splits=0;
+uint64_t total_sizes=0;
+uint64_t total_range_max_queries=0;
+
 template <typename t_k3_treap>
 struct range {
-    const t_k3_treap& m_treap;
+    const t_k3_treap* m_treap;
     k3_treap_ns::point_type m_lo, m_hi;
     k3_treap_ns::top_k_iterator<t_k3_treap> m_top_iter;
 
-    range(const t_k3_treap& treap,
+    range(const t_k3_treap* treap,
             const k3_treap_ns::point_type& lo,
             const k3_treap_ns::point_type& hi)
         : m_treap(treap), m_lo(lo), m_hi(hi) {}
-    range(const range& other)
-        : m_treap(other.m_treap), m_lo(other.m_lo), m_hi(other.m_hi),
-          m_top_iter(other.m_top_iter) {}
-
-    range& operator=(const range& other) {
-        m_lo = other.m_lo;
-        m_hi = other.m_hi;
-        m_top_iter = other.m_top_iter;
-        return *this;
-    }
+    range(const range& other) = default;
+    range(range&& other) = default;
+    range& operator=(const range& other) = default;
+    range& operator=(range&& other) = default;
 
     std::pair<range, range> split() const {
         uint64_t mid_z = (m_lo[2] + m_hi[2])/2;
@@ -359,6 +356,97 @@ struct range {
     uint64_t split_z() const {
         uint64_t mid_z = (m_lo[2] + m_hi[2])/2;
         return mid_z;
+    }
+
+    bool find_max(k3_treap_ns::point_type* node, uint64_t* w) {
+        if (!m_top_iter.is_initialized()) {
+            total_range_max_queries++;
+            m_top_iter = k3_treap_ns::top_k(*m_treap, m_lo, m_hi);
+        }
+        if (m_top_iter) {
+            if (node)
+                *node = std::get<0>(*m_top_iter);
+            if (w)
+                *w = std::get<1>(*m_top_iter);
+            return true;
+        }
+        return false;
+    }
+
+    bool is_leaf() {
+        if (!m_top_iter.is_initialized()) {
+            total_range_max_queries++;
+            m_top_iter = k3_treap_ns::top_k(*m_treap, m_lo, m_hi);
+        }
+
+        if (!m_top_iter) abort();
+        auto it = m_top_iter;
+        ++it;
+        return !it;
+    }
+
+    bool empty() {
+        return !find_max(nullptr, nullptr);
+    }
+
+    uint64_t get_max() {
+        uint64_t w;
+        if (!find_max(nullptr, &w))
+            abort();
+        return w;
+    }
+
+    uint64_t get_max_z() {
+        k3_treap_ns::point_type p;
+        if (!find_max(&p, nullptr))
+            abort();
+        return p[2];
+    }
+};
+
+/*
+template <typename t_k3_treap>
+struct range2 {
+    const t_k3_treap* m_treap;
+    std::vector<const k3_treap_ns::node_type*> m_nodes;
+    const xy_range* m_xy_range;
+    uint64_t m_z_lo, m_z_hi;
+
+    range2(const t_k3_treap* treap, const xy_range* xy_range)
+        : m_treap(treap), m_nodes{treap.root()}, m_xy_range(xy_range),
+        m_z_lo(treap.bounding_box(treap.root()).first[2]),
+        m_z_hi(treap.bounding_box(treap.root()).second[2])
+    {}
+    range2(const t_k3_treap* treap, const xy_range* xy_range,
+            std::vector<const k3_treap_ns>::node_type nodes,
+            uint64_t z_lo, uint64_t z_hi)
+        : m_treap(treap), m_nodes(nodes), m_xy_range(xy_range),
+        m_z_lo(z_lo), m_z_hi(z_hi)
+    {}
+    range2(const range2* other) = default;
+    range2(range2&& other) = default;
+
+    range2& operator=(const range2& other)  = default;
+    range2& operator=(range2&& other)  = default;
+
+    std::pair<range2, range2> split() const {
+        uint64_t mid = split_z();
+        std::vector<const k3_treap_ns::node_type> left, right;
+        for (const auto* node : m_nodes) {
+            const auto& v = *node;
+            auto bb = m_treap->bounding_box(v);
+            if (bb.first[2] <= mid && bb.second[2] > mid) {
+                assert((bb.first[2] + bb.second[2]) / 2 == mid);
+                for (auto w: m_treap->children(v)) {
+                    if (w.p[2] < mid)
+                        left.push_back(
+                }
+            }
+        }
+    }
+
+    uint64_t split_z() const {
+        return (m_z_lo + m_z_hi) >> 1;
     }
 
     bool find_max(k3_treap_ns::point_type* node, uint64_t* w) {
@@ -406,6 +494,40 @@ struct range {
         return p[2];
     }
 };
+*/
+
+template <typename t_k3_treap>
+struct range2 {
+    using iter =  k3_treap_ns::top_k_iterator<t_k3_treap>;
+    iter m_iter;
+
+    range2(iter m_iter) : m_iter(std::move(m_iter)) {}
+    range2(const range2& other) = default;
+    range2(range2&& other) = default;
+    range2& operator=(const range2& other)  = default;
+    range2& operator=(range2&& other) = default;
+
+    std::pair<range2, range2> split() const {
+        total_sizes += 2 * m_iter.queue_size();
+        total_splits++;
+        auto res = m_iter.split2();
+        return std::make_pair(range2(std::move(res[0])),
+                              range2(std::move(res[1])));
+    }
+
+    uint64_t split_z() const { return m_iter.split_point(); }
+
+    bool is_leaf() {
+        auto it = m_iter;
+        if (!it) abort();
+        ++it;
+        return !it;
+    }
+
+    bool empty() { return !m_iter; }
+    uint64_t get_max() { return std::get<1>(*m_iter); }
+    uint64_t get_max_z() { return std::get<0>(*m_iter)[2]; }
+};
 
 template <typename t_k3_treap>
 // items of result vector are (weight, z)
@@ -413,25 +535,34 @@ std::vector<std::pair<uint64_t, uint64_t>>
 topk_intersect3(const t_k3_treap& t, size_t k,
                 std::vector<xy_range>& ranges,
                 uint64_t weight_lower_bound = 0) {
+    using Range = range2<t_k3_treap>;
     if (ranges.empty()) abort();
     if (!t.size()) return {};
 
     const uint64_t inf = std::numeric_limits<uint64_t>::max();
+    const uint64_t none = -1;
     topk_heap2 result(k);
     auto get_cur_min = [&]() { return result.lower_bound(); };
 
-    std::vector<std::vector<range<t_k3_treap>>> stacks(ranges.size());
+    std::vector<std::vector<Range>> stacks(ranges.size());
     uint64_t d_max = t.bounding_box(t.root()).second[2];
     //uint64_t d_max = 255;
 
-    std::vector<range<t_k3_treap>> vt;
+    std::vector<Range> vt;
     size_t U = 0;
     size_t count=0;
     for (const auto& r : ranges) {
         //std::cerr << r.first[0] << " " << r.first[1] << " - " << r.second[0] << " " << r.second[1] << std::endl;
-        range<t_k3_treap> k3r(t,
+
+        /*
+        Range k3r(&t,
                 {r.first[0], r.first[1], 0},
                 {r.second[0], r.second[1], d_max});
+                */
+        Range k3r(k3_treap_ns::top_k(t,
+                    {r.first[0], r.first[1], 0},
+                    {r.second[0], r.second[1], d_max}));
+
         if (k3r.empty())
             return {};
         count++;
@@ -441,11 +572,11 @@ topk_intersect3(const t_k3_treap& t, size_t k,
 
     uint64_t d = 0;
     uint64_t L = weight_lower_bound;
-    auto change_v = [&](uint64_t t, const range<t_k3_treap>& newv) {
+    auto change_v = [&](uint64_t t, Range newv) {
         assert(vt[t].get_max() != inf);
         assert(newv.get_max() != inf);
         U -= vt[t].get_max() + 1;
-        vt[t] = newv; // TODO no copy
+        vt[t] = std::move(newv);
         U += vt[t].get_max() + 1;
     };
     auto change_d = [&](uint64_t newd) {
@@ -459,10 +590,10 @@ topk_intersect3(const t_k3_treap& t, size_t k,
             auto& stack2 = stacks[t];
             auto v = vt[t]; // TODO no copy
             while (stack2.size() && d > stack2.back().split_z()) {
-                v = stack2.back();
+                v = std::move(stack2.back());
                 stack2.pop_back();
             }
-            change_v(t, v);
+            change_v(t, std::move(v));
         }
     };
 
@@ -485,19 +616,19 @@ topk_intersect3(const t_k3_treap& t, size_t k,
                 break;
             change_d(newd);
         }
-        size_t t_shortest = -1;
+        size_t t_shortest = none;
         //std::cerr << "  max_z: ";
         for (size_t t = 0; t < ranges.size(); ++t) {
             assert(!vt[t].empty());
             //if (vt[t].is_leaf()) std::cerr << t << ":" << vt[t].get_max_z() << " ";
             if (!vt[t].is_leaf() || vt[t].get_max_z() != d) {
                 // TODO better selection strategy?
-                if (t_shortest == -1 || vt[t].get_max() < vt[t_shortest].get_max())
+                if (t_shortest == none || vt[t].get_max() < vt[t_shortest].get_max())
                     t_shortest = t;
             }
         }
         //std::cerr << std::endl << "  t_shortest = " << t_shortest << std::endl;
-        if (t_shortest == -1) {
+        if (t_shortest == none) {
             //std::cerr << "REPORT " << d << " " << U << std::endl;
             result.insert(d, U);
             L = std::max(weight_lower_bound, get_cur_min() + 1);
@@ -512,27 +643,29 @@ topk_intersect3(const t_k3_treap& t, size_t k,
                 if (!left.empty()) {
                     stacks[t].push_back(vt[t]);
                     assert(!stacks[t].back().empty());
-                    change_v(t, left);
+                    change_v(t, std::move(left));
                 } else {
                     // TODO(niklas) maybe not +1 here
-                    change_d(vt[t].split_z());
+                    change_d(vt[t].split_z() + 1);
                 }
             } else {
                 if (!right.empty()) {
                     assert(!right.empty());
-                    change_v(t, right);
+                    change_v(t, std::move(right));
                 } else {
                     if (stacks[t].empty())
                         break;
-                    change_v(t, stacks[t].back());
+                    change_v(t, std::move(stacks[t].back()));
                     if (stacks[t].size())
                         stacks[t].pop_back();
                     // TODO(niklas) maybe not +1 here
-                    change_d(vt[t].split_z());
+                    change_d(vt[t].split_z() + 1);
                 }
             }
         }
     }
+    std::cerr << "total splits = " << total_splits << std::endl;
+    std::cerr << "total sizes = " << total_sizes << std::endl;
 
     return result.sorted_result();
 }

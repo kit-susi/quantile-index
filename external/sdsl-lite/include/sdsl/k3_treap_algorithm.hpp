@@ -144,6 +144,26 @@ class top_k_iterator
             return res;
         };
 
+        size_t queue_size() const { return m_pq.size(); }
+        uint64_t split_point() const { return (m_p1[2] + m_p2[2]) >> 1; }
+
+        std::array<top_k_iterator, 2> split2() const {
+            std::array<top_k_iterator, 2> res;
+            uint64_t mid = split_point();
+            uint64_t cur_z = std::get<0>(m_point_val_node)[2];
+            {
+                res[0] = *this;
+                res[0].m_p2[2] = mid;
+                if (cur_z > mid) ++res[0];
+            }
+            {
+                res[1] = *this;
+                res[1].m_p1[2] = mid + 1;
+                if (cur_z <= mid) ++res[1];
+            }
+            return res;
+        };
+
     //! Prefix increment of the iterator
         top_k_iterator& operator++()
         {
@@ -176,7 +196,8 @@ class top_k_iterator
 //                        m_valid = true;
                         auto nodes = m_treap->children(v);
                         for (auto node : nodes)
-                            m_pq.emplace(node, false);
+                            if (overlap<t_k3_treap::k>(m_p1, m_p2, node))
+                                m_pq.emplace(node, false);
                         if (contained(v.max_p, m_p1, m_p2)) {
                             //std::cout << "here????4" << std::endl;
                             m_point_val_node = t_point_val_node(v.max_p, v.max_v, v);
@@ -466,3 +487,5 @@ construct_im(k3_treap<t_k, t_bv, t_rank, t_max_vec>& idx, std::vector<std::array
 
 } // namespace sdsl
 #endif
+
+

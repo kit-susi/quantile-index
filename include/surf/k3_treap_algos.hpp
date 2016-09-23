@@ -219,58 +219,8 @@ bool find_successor2(const t_k3_treap& t,
 }
 
 template <typename t_k3_treap, typename t_weight, typename t_weight_reduce>
-// items of result vector are (weight, z)
-std::vector<std::pair<uint64_t, uint64_t>>
-topk_intersect(
-        const t_k3_treap& t, size_t k,
-        std::vector<xy_range>& ranges,
-        t_weight weight_init,
-        t_weight_reduce weight_reduce) {
-    if (!t.size()) return {};
-    uint64_t d = 0;
-
-    topk_heap2 result(k);
-    const auto inf = std::numeric_limits<uint64_t>::max();
-
-    for (;;) {
-        std::cerr << "d  =" << d << std::endl;
-        std::vector<k3_treap_ns::point_type> successors(ranges.size());
-        uint64_t max_succ = 0;
-        bool shared_result = true;
-        t_weight combined_weight = weight_init;
-        for (size_t i = 0; i < ranges.size(); ++i) {
-            uint64_t succ_weight;
-            if (!find_successor2(t,
-                        {ranges[i].first[0], ranges[i].first[1], d},
-                        {ranges[i].second[0], ranges[i].second[1], inf},
-                        result.lower_bound(),
-                        &successors[i],
-                        &succ_weight)) {
-                std::cerr << "no successor in range " << i << std::endl;
-                // can't find successor in range i, so we are finished
-                return result.sorted_result();
-            }
-            uint64_t succ = successors[i][2];
-            std::cerr << "  succ = " << succ << std::endl;
-            if (succ != max_succ && i > 0)
-                shared_result = false;
-            if (succ > max_succ || i == 0)
-                max_succ = succ;
-            combined_weight = weight_reduce(combined_weight, succ_weight);
-        }
-        std::cerr << "max_succ = " << max_succ << "  shared = " << shared_result << std::endl;
-        if (shared_result) {
-            result.insert(max_succ, combined_weight);
-            d = max_succ + 1;
-        } else {
-            d = max_succ;
-        }
-    }
-
-    return result.sorted_result();
-}
-
-template <typename t_k3_treap, typename t_weight, typename t_weight_reduce>
+// TODO(niklas) there is a small bug in here. Go find it.
+//
 // items of result vector are (weight, z)
 std::vector<std::pair<uint64_t, uint64_t>>
 topk_intersect2(
@@ -284,6 +234,7 @@ topk_intersect2(
 
     topk_heap2 result(k);
     uint64_t d_lo = 0;
+    uint64_t none = -1;
 
     auto max_w = [&](uint64_t d_lo, uint64_t d_hi) {
         uint64_t w = weight_init;
@@ -291,7 +242,7 @@ topk_intersect2(
             auto it = k3_treap_ns::top_k(t,
                     {range.first[0], range.first[1], d_lo},
                     {range.second[0], range.second[1], d_hi});
-            if (!it) return uint64_t{0};
+            if (!it) return none;
             w = weight_reduce(w, std::get<1>(*it));
         }
         return w;
@@ -299,7 +250,7 @@ topk_intersect2(
 
     auto eligible_d_hi = [&](uint64_t d_hi) {
         uint64_t w = max_w(d_lo, d_hi);
-        return w != -1 && w > result.lower_bound();
+        return w != none && w > result.lower_bound();
     };
 
     while (eligible_d_hi(inf)) {
@@ -317,7 +268,7 @@ topk_intersect2(
         }
 
         uint64_t w = max_w(lo, lo);
-        if (w != -1)
+        if (w != none)
             result.insert(lo, w);
         d_lo = lo + 1;
     }

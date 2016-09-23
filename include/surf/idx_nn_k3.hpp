@@ -25,10 +25,16 @@ enum class k3_treap_algo {
     UNORDERED,
     DAAT,
 };
+enum class k3_treap_intersect_algo {
+    INTERSECT_TOPK,
+    DAAT_BINSEARCH,
+    DAAT,
+};
 
 template<typename t_csa,
          typename t_k2treap,
-         k3_treap_algo t_treap_algo = k3_treap_algo::DAAT,
+         k3_treap_algo t_treap_algo = k3_treap_algo::UNORDERED,
+         k3_treap_intersect_algo t_treap_algo_intersect = k3_treap_intersect_algo::DAAT,
          typename t_rmq = sdsl::rmq_succinct_sct<>,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
@@ -256,8 +262,21 @@ public:
                     k3_treap_algos::xy_point{std::get<1>(h_range), depth - 1});
         }
 
-        auto res = k3_treap_algos::topk_intersect3(m_k2treap, k, ranges);
-                //0, [&](uint64_t w0, uint64_t w) { return w0 + w + 1; });
+        std::vector<std::pair<uint64_t, uint64_t>> res;
+
+        switch (t_treap_algo_intersect) {
+            case k3_treap_intersect_algo::DAAT: {
+                res = k3_treap_algos::topk_intersect3(m_k2treap, k, ranges);
+                break;
+            }
+            case k3_treap_intersect_algo::DAAT_BINSEARCH: {
+                res = k3_treap_algos::topk_intersect2(m_k2treap, k, ranges,
+                            0, [&](uint64_t w0, uint64_t w) { return w0 + w + 1; });
+                break;
+            }
+            default: abort();
+        }
+
         for (auto it : res)
             m_results.emplace_back(it.second, it.first);
         return sort_topk_results<token_type>(&m_results);
@@ -372,6 +391,7 @@ public:
 template<typename t_csa,
          typename t_k2treap,
          k3_treap_algo t_treap_algo,
+         k3_treap_intersect_algo t_treap_intersect_algo,
          typename t_rmq,
          typename t_border,
          typename t_border_rank,
@@ -382,16 +402,19 @@ template<typename t_csa,
          bool     offset_encoding,
          typename t_doc_offset
          >
-void construct(idx_nn_k3<t_csa, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
-               t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding,
-               t_doc_offset>& idx, const std::string&, sdsl::cache_config& cc,
+void construct(idx_nn_k3<t_csa, t_k2treap, t_treap_algo, t_treap_intersect_algo,
+                         t_rmq, t_border, t_border_rank, t_border_select, t_h,
+                         t_h_select_0, t_h_select_1, offset_encoding,
+                         t_doc_offset>& idx,
+               const std::string&, sdsl::cache_config& cc,
                uint8_t num_bytes) {
     using namespace sdsl;
     using namespace std;
     using t_df = DF_TYPE;
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn_k3<t_csa, t_k2treap, t_treap_algo, t_rmq, t_border, t_border_rank,
+    using idx_type = idx_nn_k3<t_csa, t_k2treap, t_treap_algo,
+          t_treap_intersect_algo, t_rmq, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
 

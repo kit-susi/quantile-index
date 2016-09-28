@@ -26,7 +26,7 @@ enum class k3_treap_algo {
     DAAT,
 };
 enum class k3_treap_intersect_algo {
-    INTERSECT_TOPK,
+    NAIVE,
     DAAT_BINSEARCH,
     DAAT,
 };
@@ -113,9 +113,9 @@ private:
                 if (!empty(h_range)) {
                     uint64_t depth = end - begin;
                     m_k2_iter = k3_treap_ns::top_k(m_idx->m_k2treap,
-                    {std::get<0>(h_range), 0, 0},
-                    {std::get<1>(h_range), depth - 1,
-                     std::numeric_limits<uint64_t>::max()});
+                        {std::get<0>(h_range), 0, 0},
+                        {std::get<1>(h_range), depth - 1,
+                        std::numeric_limits<uint64_t>::max()});
                 }
                 m_states.push({m_sp, m_ep});
                 this->next();
@@ -265,6 +265,43 @@ public:
         std::vector<std::pair<uint64_t, uint64_t>> res;
 
         switch (t_treap_algo_intersect) {
+            case k3_treap_intersect_algo::NAIVE: {
+                uint64_t inf = std::numeric_limits<uint64_t>::max();
+                for (size_t i = 0; i < ranges.size(); ++i) {
+                    const auto& r = ranges[i];
+                    auto it = k3_treap_ns::range_3d(m_k2treap,
+                        {r.first[0], r.first[1], 0},
+                        {r.second[0], r.second[1], inf},
+                        {0, inf});
+                    std::vector<std::pair<uint64_t, double>> tmp, new_res;
+                    while (it) {
+                        tmp.emplace_back((*it).first[2], (*it).second + 1);
+                        ++it;
+                    }
+                    std::sort(tmp.begin(), tmp.end());
+                    {
+                        std::ofstream f("/tmp/f1", std::ofstream::app);
+                        f << tmp.size() << " ";
+                        for (auto it : tmp)
+                            f << it.first << " " << it.second << " ";
+                        f << std::endl;
+                    }
+
+                    if (i == 0) {
+                        m_results = std::move(tmp);
+                        continue;
+                    }
+                    size_t j = 0;
+                    for (const auto& doc : tmp) {
+                        while (j < m_results.size() && m_results[j].first < doc.first)
+                            ++j;
+                        if (j < m_results.size() && m_results[j].first == doc.first)
+                            new_res.emplace_back(doc.first, m_results[j].second + doc.second);
+                    }
+                    m_results = std::move(new_res);
+                }
+                break;
+            }
             case k3_treap_intersect_algo::DAAT: {
                 res = k3_treap_algos::topk_intersect3(m_k2treap, k, ranges);
                 break;

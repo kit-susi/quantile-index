@@ -1,10 +1,37 @@
 #pragma once
+#include <stack>
+#include <vector>
 
 #include "sdsl/suffix_trees.hpp"
 #include "surf/topk_interface.hpp"
 #include "sdsl/rmq_succinct_sct.hpp"
 
 namespace surf {
+
+//template<typename t_cst,
+//         typename t_select>
+//struct map_node_to_dup_type {
+//    typedef typename t_cst::node_type t_node;
+//    const map_to_dup_type<t_select> m_map;
+//    const t_cst* m_cst;
+//
+//    map_node_to_dup_type(const t_select* select, const t_cst* cst):
+//        m_map(select), m_cst(cst)
+//    { }
+//
+//    range_type
+//    operator()(const t_node& v)const {
+//        auto left    = 1;
+//        auto left_rb = m_cst->rb(m_cst->select_child(v, left));
+//        return m_map(left_rb, left_rb + 1);
+//    }
+//    // id \in [1..n-1]
+//    uint64_t id(const t_node& v)const {
+//        auto left    = 1;
+//        return m_cst->rb(m_cst->select_child(v, left)) + 1;
+//    }
+//};
+
 
 using rmq_type = rmq_succinct_sct<false>;
 template<typename t_csa,
@@ -30,6 +57,11 @@ public:
     typedef typename t_csa::alphabet_category          alphabet_category;
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
 
+    typedef sdsl::rrr_vector<63>                       h_type;
+    typedef h_type::select_0_type                      h_select_0_type;
+    typedef h_type::select_1_type                      h_select_1_type;
+    typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
+
 private:
     using token_type = typename topk_interface::token_type;
 
@@ -42,6 +74,11 @@ private:
     tails_select_type  m_tails_select;
     int_vector<>       m_weights;
     rmq_type           m_weights_rmq;
+    int_vector<>       m_documents;
+    h_type             m_h;
+    h_select_0_type    m_h_select_0;
+    h_select_1_type    m_h_select_1;
+    map_to_h_type      m_map_to_h;
 
 public:
 
@@ -69,10 +106,8 @@ public:
         void init_interval(top_down_result& interval) {
             interval.tails_id = m_idx->m_weights_rmq(interval.start, interval.end-1);
             assert(interval.tails_id >= interval.start && interval.tails_id < interval.end);
-            interval.weight = m_idx->m_weights[interval.tails_id];
-            // TODO compute document ids later.
-            uint64_t sa_pos = m_idx->m_tails_select(interval.tails_id+1) % m_idx->m_csa.size();
-            interval.document = m_idx->m_border_rank(m_idx->m_csa[sa_pos]);
+            interval.weight = m_idx->m_weights[interval.tails_id] + 1;
+            interval.document = m_idx->m_documents[interval.tails_id]; // TODO: wrong use h mapping.
         }
 
     public:
@@ -86,25 +121,22 @@ public:
                                       begin, end, m_sp, m_ep) > 0;
             m_valid &= !only_match;
             if (m_valid) {
-                uint64_t offset = idx->m_csa.size();
-                std::cerr << "interval size: " << m_ep - m_sp+1<< endl;
-                // <= here instead of < ??? TODO
-                for (int64_t depth = 0; depth < (end - begin); ++depth) {
-                    top_down_result interval;
-                    interval.start = idx->m_tails_rank(depth*offset + m_sp);
-                    interval.end = idx->m_tails_rank(depth*offset + m_ep+1);
-                    std::cerr << interval.start << " " << interval.end << " " << interval.end - interval.start << endl;
-                    std::cerr << "with weights: ";
-                    for (int i = interval.start; i < interval.end; i++)
-                            std::cerr << idx->m_weights[i] << " "; std::cerr << endl;
-                    if (interval.start < interval.end) {
-                        init_interval(interval);
-                        m_intervals.push(interval);     
+                auto h_range = m_idx->m_map_to_h(m_sp, m_ep);
+                if (!empty(h_range)) {
+                    uint64_t offset = idx->m_weights.size(); 
+                    // <= here instead of < ??? TODO
+                    for (int64_t depth = 0; depth <= (end - begin); ++depth) {
+                        top_down_result interval;
+                        interval.start = idx->m_tails_rank(depth*offset + std::get<0>(h_range));
+                        interval.end = idx->m_tails_rank(depth*offset + std::get<1>(h_range)+1);
+                        if (interval.start < interval.end) {
+                            init_interval(interval);
+                            m_intervals.push(interval);     
+                        }
                     }
                 }
             }
         }
-
 
         topk_result get() const {
             if (m_intervals.empty())
@@ -176,8 +208,16 @@ public:
         load_from_cache(m_tails_select, surf::KEY_TAILS_SELECT + std::to_string(LEVELS), cc, true);
         m_tails_rank.set_vector(&m_tails);
         m_tails_select.set_vector(&m_tails);
-        load_from_cache(m_weights, surf::KEY_WEIGHTS + std::to_string(LEVELS), cc);
-        load_from_cache(m_weights_rmq, surf::KEY_WEIGHTS_RMQ, cc, true);
+        load_from_cache(m_weights, surf::KEY_WEIGHTS_G + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_weights_rmq, surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_documents, surf::KEY_DUP_G, cc);
+
+        load_from_cache(m_h, surf::KEY_H, cc, true);
+        load_from_cache(m_h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        load_from_cache(m_h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        m_h_select_0.set_vector(&m_h);
+        m_h_select_1.set_vector(&m_h);
+        m_map_to_h = map_to_h_type(&m_h_select_1);
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
@@ -189,10 +229,12 @@ public:
         written_bytes += m_border.serialize(out, child, "BORDER");
         written_bytes += m_border_rank.serialize(out, child, "BORDER_RANK");
         written_bytes += m_border_select.serialize(out, child, "BORDER_SELECT");
+        written_bytes += m_tails.serialize(out, child, "TAILS");
         written_bytes += m_tails_rank.serialize(out, child, "TAILS_RANK");
         written_bytes += m_tails_select.serialize(out, child, "TAILS_SELECT");
         written_bytes += m_weights.serialize(out, child, "WEIGHTS");
         written_bytes += m_weights_rmq.serialize(out, child, "WEIGHTSRMQ");
+        written_bytes += m_documents.serialize(out, child, "DOCS");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -227,11 +269,18 @@ void construct(idx_top_down<t_csa,
                t_tails_select>& idx,
                const std::string&, sdsl::cache_config& cc, uint8_t num_bytes) {
     using t_wtd = WTD_TYPE;
-    using cst_type =  sdsl::cst_sct3<t_csa, sdsl::lcp_dac<>, sdsl::bp_support_sada<>, sdsl::bit_vector, sdsl::rank_support_v<>, sdsl::select_support_mcl<>>;
+    using t_df = surf::df_sada<sdsl::rrr_vector<63>,sdsl::rrr_vector<63>::select_1_type, sdsl::byte_alphabet_tag>;
+    using cst_type = t_df::cst_type; 
     using node_type = typename cst_type::node_type;
     using tails_type = t_tails;
     using tails_rank_type = t_tails_rank;
     using tails_select_type = t_tails_select;
+    using t_h = sdsl::rrr_vector<63>;
+    using t_h_select_0 = t_h::select_0_type;
+    using t_h_select_1 = t_h::select_1_type;
+
+    const auto key_dup = surf::KEY_DUP_G;
+    const auto key_df = surf::KEY_SADADF_G;
 
     cout << "...CSA" << endl; // CSA to get the lex. range
     if (!cache_file_exists<t_csa>(surf::KEY_CSA, cc))
@@ -251,10 +300,26 @@ void construct(idx_top_down<t_csa,
         cout << "wtd.sigma = " << wtd.sigma << endl;
         store_to_cache(wtd, surf::KEY_WTD, cc, true);
     }
+    cout << "...DF" << endl; // For h vector and repetition array.
+    if (!cache_file_exists<t_df>(key_df, cc))
+    {
+        t_df df;
+        construct(df, "", cc, 0);
+        store_to_cache(df, key_df, cc, true);
+        bit_vector h;
+        load_from_cache(h, surf::KEY_H, cc);
+        t_h hrrr(h);
+        store_to_cache(hrrr, surf::KEY_H, cc, true);
+        t_h_select_0 h_select_0(&hrrr);
+        t_h_select_1 h_select_1(&hrrr);
+        store_to_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        store_to_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+    }
     cout << "...DOC_BORDER" << endl;
     if (!cache_file_exists<t_border>(surf::KEY_DOCBORDER, cc) or
             !cache_file_exists<t_border_rank>(surf::KEY_DOCBORDER_RANK, cc) or
-            !cache_file_exists<t_border_select>(surf::KEY_DOCBORDER_SELECT, cc)) {
+            !cache_file_exists<t_border_select>(surf::KEY_DOCBORDER_SELECT, cc))
+    {
         bit_vector doc_border;
         load_from_cache(doc_border, surf::KEY_DOCBORDER, cc);
         t_border sd_doc_border(doc_border);
@@ -264,207 +329,109 @@ void construct(idx_top_down<t_csa,
         t_border_select doc_border_select(&sd_doc_border);
         store_to_cache(doc_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
     }
-    cout << "...TMPCST" << endl;
+ 
+    cout << "...tails" << endl;
+    const auto key_tails = surf::KEY_TAILS + std::to_string(LEVELS);
+    const auto key_tails_rank = surf::KEY_TAILS_RANK + std::to_string(LEVELS);
+    const auto key_tails_select = surf::KEY_TAILS_SELECT + std::to_string(LEVELS);
+    if (!cache_file_exists(key_tails, cc))
     {
-        if (!cache_file_exists(conf::KEY_SA, cc)) {
-            construct_sa<t_csa::alphabet_type::int_width>(cc);
-        }
-        register_cache_file(conf::KEY_SA, cc);
-        if (!cache_file_exists(conf::KEY_LCP, cc)) {
-            if (t_csa::alphabet_type::int_width == 8) {
-                cout << "byte lcp construct" << endl;
-                construct_lcp_semi_extern_PHI(cc);
-            } else {
-                cout << "int lcp construct" << endl;
-                construct_lcp_PHI<t_csa::alphabet_type::int_width>(cc);
-            }
-        }
-        register_cache_file(conf::KEY_LCP, cc);
-        if (!cache_file_exists<cst_type>(KEY_TMPCST, cc)) {
-            auto event = memory_monitor::event("construct cst");
-            cst_type cst = cst_type(cc);
-            store_to_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
-        }
-    }
-    cout << "...C" << endl;
-    string d_file = cache_file_name(surf::KEY_DARRAY, cc);
-    if (!cache_file_exists(surf::KEY_C, cc)) {
-        construct_doc_cnt<t_csa::alphabet_type::int_width>(cc);
-        uint64_t doc_cnt = 0;
-        load_from_cache(doc_cnt, KEY_DOCCNT, cc);
-        cout << "doc_cnt = " << doc_cnt << endl;
-        int_vector_buffer<> D(d_file);
-        cout << "n=" << D.size() << endl;
-        int_vector<> C(D.size(), 0, bits::hi(D.size()) + 1);
-        int_vector<> last_occ(doc_cnt + 1, D.size(), bits::hi(D.size()) + 1);
-        for (size_t i = 0; i < D.size(); ++i) {
-            uint64_t d = D[i];
-            C[i] = last_occ[d];
-            last_occ[d] = i;
-        }
-        util::bit_compress(C);
-        store_to_file(C, cache_file_name(surf::KEY_C, cc));
-    }
-    cout << "...TAILS" << endl;
-    const string key_tails = surf::KEY_TAILS + std::to_string(LEVELS);
-    const string key_tails_rank = surf::KEY_TAILS_RANK + std::to_string(LEVELS);
-    const string key_tails_select = surf::KEY_TAILS_SELECT + std::to_string(LEVELS);
-    cst_type cst;
-    if (!cache_file_exists<tails_type>(key_tails, cc)) {
-        int_vector<> last_occ;
-        // Loading files.
-        int_vector_buffer<> D(d_file);
-        load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
-        load_from_file(last_occ, cache_file_name(surf::KEY_C, cc));
-        bit_vector bv(LEVELS * D.size(), 0); // Tails plain bv.
+        uint64_t max_depth = 0;
+        load_from_cache(max_depth, surf::KEY_MAXCSTDEPTH, cc);
 
-        auto add_lca = [&](uint64_t u, uint64_t v) {
-            if (u < D.size() && v < D.size()) { // Check if exists.
-                node_type uu = cst.select_leaf(u + 1);
-                node_type vv = cst.select_leaf(v + 1);
-                uint64_t depth = cst.depth(cst.lca(uu, vv));
-                if (depth < LEVELS) {
-                    //bv[depth * D.size() + u] = 1;
-                    bv[depth * D.size() + v] = 1;
-                }
-            }
-        };
-        for (uint64_t pos = 0; pos < D.size(); pos++) {
-            add_lca(last_occ[pos], pos);
+        int_vector<> dup;
+        load_from_cache(dup, key_dup, cc);
+        cout << "dup.size()=" << dup.size() << endl;
+        if (dup.size() < 20) {
+            cout << dup << endl;
         }
-        {   // Add missing ones in bv.
-            cout << "Add missing ones." << endl;
-            std::unordered_set<uint64_t> doc_set;
-            auto add_missing_ones = [&](node_type v) {
-                uint64_t depth = cst.depth(v);
-                // Find all doc at node v.
-                for (size_t i = v.i; i <= v.j; ++i) {
-                    if (bv[depth * D.size() + i])
-                        doc_set.insert(D[i]);
-                }
-                // Mark first occurence of docs.
-                size_t i = v.i;
-                while (!doc_set.empty()) {
-                    if (doc_set.count(D[i]) == 1) {
-                        assert(!bv[depth * D.size() + i]);
-                        bv[depth * D.size() + i] = 1;
-                        doc_set.erase(D[i]);
-                    }
-                    ++i;
-                }
-            };
-            // DFS.
-            std::stack<node_type> s;
-            s.push(cst.root());
-            while (!s.empty()) {
-                auto v = s.top();
-                s.pop();
-                for (const auto u : cst.children(v)) {
-                    if (cst.depth(u) < LEVELS)
-                        s.push(u);
-                }
-                add_missing_ones(v);
-            }
-        }
-        {   // Building and writing tails bv in correct format.
-            tails_type tails(bv);
-            tails_rank_type tails_rank(&tails);
-            tails_select_type tails_select(&tails);
-            store_to_cache(tails, key_tails, cc, true);
-            store_to_cache(tails_rank, key_tails_rank, cc, true);
-            store_to_cache(tails_select, key_tails_select, cc, true);
-        }
-    }
 
-    const string key_next_occ = surf::KEY_NEXT_OCC + std::to_string(LEVELS);
-    cout << "...next_occ" << endl;
-    if (!cache_file_exists(key_next_occ, cc)) {
-        uint64_t doc_cnt = 0;
-        load_from_cache(doc_cnt, KEY_DOCCNT, cc);
-        int_vector<> D;
-        tails_type tails;
-        tails_rank_type tails_rank;
-        tails_select_type tails_select;
-        load_from_file(D, d_file);
-        int_vector_buffer<> next_occ(cache_file_name(key_next_occ, cc), std::ios::out, 1 << 20,
-                                     bits::hi(D.size() * LEVELS+ 1) + 1);
-        load_from_file(tails, cache_file_name<tails_type>(key_tails, cc));
-        load_from_file(tails_rank, cache_file_name<tails_rank_type>(key_tails_rank, cc));
-        load_from_file(tails_select, cache_file_name<tails_select_type>(key_tails_select, cc));
-        tails_rank.set_vector(&tails);
-        tails_select.set_vector(&tails);
-        std::vector<uint64_t> cur_next_occ(doc_cnt, D.size()*LEVELS);
-        uint64_t d = 0;
-        uint64_t num_arrows = tails_rank(LEVELS * D.size());
-        cout << "Num arrows:" << num_arrows << " " << D.size() << endl;
-        for (uint64_t i = num_arrows; i > 0; --i) {
-            d = D[tails_select(i) % D.size()];
-            next_occ[i - 1] = cur_next_occ[d];
-            cur_next_occ[d] = i; // one based!!
-        }
-    }
-    cout << "...weights" << endl;
-    const string key_weights = surf::KEY_WEIGHTS + std::to_string(LEVELS);
-    if (!cache_file_exists(key_weights, cc)) {
-        using std::tuple;
-        using std::make_tuple;
-        using std::get;
-        uint64_t output_count = 0;
         t_wtd wtd;
-        cst_type cst;
-        tails_type tails;
-        tails_rank_type tails_rank;
-        tails_select_type tails_select;
-        int_vector<> next_occ;
-        load_from_file(wtd, cache_file_name<t_wtd>(surf::KEY_WTD, cc));
-        load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
-        load_from_file(tails, cache_file_name<tails_type>(key_tails, cc));
-        load_from_file(tails_rank, cache_file_name<tails_rank_type>(key_tails_rank, cc));
-        load_from_file(tails_select, cache_file_name<tails_select_type>(key_tails_select, cc));
-        load_from_file(next_occ, cache_file_name(key_next_occ, cc));
-        tails_rank.set_vector(&tails);
-        tails_select.set_vector(&tails);
+        load_from_cache(wtd, surf::KEY_WTD, cc, true);
 
-        int_vector_buffer<> weights_buf(cache_file_name(key_weights, cc),
-                        std::ios::out, 1 << 20, bits::hi(wtd.size()) + 1);
-        auto calc_weights_for_node = [&](node_type v, uint64_t depth) {
-            uint64_t offset = depth * wtd.size();
-            uint64_t s = tails_rank(v.i + offset);         // inclusive.
-            uint64_t e = tails_rank(v.j + 1 + offset); // exclusive.
-            for (uint64_t i = s; i < e; ++i) {
-                uint64_t sa_start = tails_select(i + 1) - offset; // inclusive.
-                uint64_t sa_end = v.j + 1; // exclusive.
-                uint64_t d = wtd[sa_start];
-                if (next_occ[i] <= e) // next_occ is one based.
-                    sa_end = std::min(wtd.size(), tails_select(next_occ[i]) - offset);
-                assert(output_count == i);
-                uint64_t w = wtd.rank(sa_end, d) - wtd.rank(sa_start, d);
-                weights_buf[output_count++] = w;
-                //cout << depth << " " << d << " " << w << endl;
+        t_h hrrr;
+        load_from_cache(hrrr, surf::KEY_H, cc, true);
+        t_h_select_1 h_select_1;
+        load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        h_select_1.set_vector(&hrrr);
+        cst_type cst;
+        load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
+        map_node_to_dup_type<cst_type, t_h_select_1> map_node_to_dup(&h_select_1, &cst);
+
+        int_vector<> old_weights;
+        load_from_file(old_weights, cache_file_name(surf::KEY_WEIGHTS_G, cc));
+        const uint64_t bits_per_level = old_weights.size()*2; // TODO set this correctly.
+        bit_vector tails_plain(LEVELS * bits_per_level, 0);
+
+        uint64_t doc_cnt = 1;
+        load_from_cache(doc_cnt, KEY_DOCCNT, cc);
+        typedef std::stack<uint32_t, std::vector<uint32_t>> t_stack;
+        //  HELPER to build the pointer structure
+        std::vector<t_stack> depths(doc_cnt, t_stack(std::vector<uint32_t>(1, 0))); // doc_cnt stack for last depth
+        uint64_t depth = 0;
+
+        // DFS traversal of CST
+        for (auto it = cst.begin(); it != cst.end(); ++it) {
+            auto v = *it; // get the node by dereferencing the iterator
+            if (!cst.is_leaf(v)) {
+                if (it.visit() == 1) {
+                    // node visited the first time
+                    depth = cst.depth(v);
+                    range_type r = map_node_to_dup(v);
+                    if (!empty(r)) {
+                        for (size_t i = std::get<0>(r); i <= std::get<1>(r); ++i) {
+                            depths[dup[i]].push(depth);
+                        }
+                    }
+                } else { // node visited the second time
+                    range_type r = map_node_to_dup(v);
+                    if (!empty(r)) {
+                        // Get index of first arrow leaving node.
+                        for (size_t i = std::get<0>(r); i <= std::get<1>(r); ++i) {
+                            depths[dup[i]].pop();
+                            //P_buf[i] = depths[dup[i]].top();
+                            if (depths[dup[i]].top() < LEVELS) {
+                                tails_plain[depths[dup[i]].top()*bits_per_level + i] = 1;
+                            }
+                        }
+                    }
+                }
             }
-        };
-        using pq_type = tuple<uint64_t, node_type>;
-        std::priority_queue<pq_type, std::vector<pq_type>, std::greater<pq_type>> q;
-        q.push(make_tuple(0, cst.root()));
-        while (!q.empty()) {
-            auto v = get<1>(q.top());
-            uint64_t d = get<0>(q.top());
-            q.pop();
-            for (const auto u : cst.children(v)) {
-                uint64_t depth = cst.depth(u);
-                if (depth < LEVELS)
-                    q.push(make_tuple(depth, u));
-            }
-            calc_weights_for_node(v, d);
         }
+        //P_buf.close();
+        tails_type tails(tails_plain);
+        load_from_file(tails_plain, cache_file_name(key_tails, cc));
+        tails_select_type ts(&tails);
+        tails_rank_type tr(&tails);
+        store_to_cache(tails, key_tails, cc, true);
+        store_to_cache(tr, key_tails_rank, cc, true);
+        store_to_cache(ts, key_tails_select, cc, true);
     }
+    cout << "...weights and rmq.";
+    const auto key_weights = surf::KEY_WEIGHTS_G + std::to_string(LEVELS);
+    const auto key_weights_rmq = surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS);
     if (!cache_file_exists<rmq_type>(surf::KEY_WEIGHTS_RMQ, cc)) {
+        // Reorder weights.
         cout << "Construct rmq." << endl;
-        int_vector<> weights;
-        load_from_file(weights, cache_file_name(key_weights, cc));
+        int_vector<> old_weights;
+        load_from_file(old_weights, cache_file_name(surf::KEY_WEIGHTS_G, cc));
+        cout << "weights size. " << old_weights.size() << endl;
+
+        tails_type tails;
+        load_from_file(tails, cache_file_name(key_tails, cc));
+        tails_select_type tails_select;
+        tails_rank_type tails_rank;
+        load_from_file(tails_select, cache_file_name(key_tails_select, cc));
+        tails_select.set_vector(&tails);
+        tails_rank.set_vector(&tails);
+        const uint64_t bits_per_level = old_weights.size();
+        uint64_t num_arrows = tails_rank(bits_per_level*LEVELS);
+        int_vector<> weights(num_arrows, 0);
+        cout << num_arrows << " vs. " << old_weights.size() << endl;
         rmq_type rmq(&weights);
         cout << "rmq_size: " << rmq.size() << endl;
-        store_to_cache(rmq, surf::KEY_WEIGHTS_RMQ, cc, true);
+        store_to_cache(weights, key_weights, cc, true);
+        store_to_cache(rmq, key_weights_rmq, cc, true);
     }
 }
 } // namespace surf

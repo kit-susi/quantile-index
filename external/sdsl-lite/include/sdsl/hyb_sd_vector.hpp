@@ -759,7 +759,7 @@ class hyb_sd_vector
 
         // typedef rank_support_hyb_sd<0, hyb_sd_vector> rank_0_type;
         typedef rank_support_hyb_sd<1, hyb_sd_vector> rank_1_type;
-        // typedef select_support_hyb_sd<0, hyb_sd_vector> select_0_type;
+        typedef select_support_hyb_sd<0, hyb_sd_vector> select_0_type;
         typedef select_support_hyb_sd<1, hyb_sd_vector> select_1_type;
 
     private:

@@ -551,7 +551,9 @@ topk_intersect3(const t_k3_treap& t, size_t k,
         }
     };
 
+    uint64_t iters=0, splits=0;
     while (d < inf) {
+        iters++;
         //std::cerr << "d=" << d << " L=" << L << " U=" << U << std::endl;
         //std::cerr << "total splits = " << total_splits << std::endl;
         //std::cerr << "total sizes = " << total_sizes << std::endl;
@@ -590,6 +592,7 @@ topk_intersect3(const t_k3_treap& t, size_t k,
             change_d(d + 1);
         } else {
             size_t t = t_shortest;
+            splits++;
             auto left_right = vt[t].split();
             auto left = left_right.first;
             auto right = left_right.second;
@@ -619,6 +622,7 @@ topk_intersect3(const t_k3_treap& t, size_t k,
             }
         }
     }
+    std::cerr << "k3 iters=" << iters << " splits=" << splits << std::endl;
 
     return result.sorted_result();
 }

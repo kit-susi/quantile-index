@@ -34,6 +34,7 @@ const std::string KEY_DOC_OFFSET  = "doc_offset";
 const std::string KEY_DOC_OFFSET_SELECT  = "doc_offset_select";
 const std::string KEY_DUP  = "dup";
 const std::string KEY_DUP_G  = "dup_g";
+const std::string KEY_DOCUMENTS  = "documents";
 const std::string KEY_P   = "P";
 const std::string KEY_P_G   = "P_G";
 const std::string KEY_WTP   = "WTP";

@@ -85,7 +85,7 @@ public:
     template <typename t_token>
     class top_down_topk_iterator : public topk_iterator<t_token> {
     private:
-        const idx_top_down*m_idx;
+        const idx_top_down* m_idx;
         uint64_t           m_sp;  // start point of lex interval
         uint64_t           m_ep;  // end point of lex interval
         bool               m_valid = false;
@@ -102,9 +102,10 @@ public:
             }
         };
         std::priority_queue<top_down_result> m_intervals;
+        std::unordered_set<uint64_t> m_reported_docs;
 
         void init_interval(top_down_result& interval) {
-            interval.tails_id = m_idx->m_weights_rmq(interval.start, interval.end-1);
+            interval.tails_id = m_idx->m_weights_rmq(interval.start, interval.end - 1);
             assert(interval.tails_id >= interval.start && interval.tails_id < interval.end);
             interval.weight = m_idx->m_weights[interval.tails_id] + 1;
             interval.document = m_idx->m_documents[interval.tails_id]; // TODO: wrong use h mapping.
@@ -113,25 +114,25 @@ public:
     public:
         top_down_topk_iterator() = delete;
         top_down_topk_iterator(const idx_top_down* idx,
-                       const typename topk_interface::token_type* begin,
-                       const typename topk_interface::token_type* end,
-                       bool multi_occ, bool only_match) : 
-                m_idx(idx), m_multi_occ(multi_occ) {
+                               const typename topk_interface::token_type* begin,
+                               const typename topk_interface::token_type* end,
+                               bool multi_occ, bool only_match) :
+            m_idx(idx), m_multi_occ(multi_occ) {
             m_valid = backward_search(m_idx->m_csa, 0, m_idx->m_csa.size() - 1,
                                       begin, end, m_sp, m_ep) > 0;
             m_valid &= !only_match;
             if (m_valid) {
                 auto h_range = m_idx->m_map_to_h(m_sp, m_ep);
                 if (!empty(h_range)) {
-                    uint64_t offset = idx->m_weights.size(); 
+                    uint64_t offset = idx->m_tails.size() / LEVELS;
                     // <= here instead of < ??? TODO
                     for (int64_t depth = 0; depth <= (end - begin); ++depth) {
                         top_down_result interval;
-                        interval.start = idx->m_tails_rank(depth*offset + std::get<0>(h_range));
-                        interval.end = idx->m_tails_rank(depth*offset + std::get<1>(h_range)+1);
+                        interval.start = idx->m_tails_rank(depth * offset + std::get<0>(h_range));
+                        interval.end = idx->m_tails_rank(depth * offset + std::get<1>(h_range) + 1);
                         if (interval.start < interval.end) {
                             init_interval(interval);
-                            m_intervals.push(interval);     
+                            m_intervals.push(interval);
                         }
                     }
                 }
@@ -140,9 +141,9 @@ public:
 
         topk_result get() const {
             if (m_intervals.empty())
-                    abort();
+                abort();
             return topk_result(m_intervals.top().document,
-                            m_intervals.top().weight);
+                               m_intervals.top().weight);
         }
 
         bool done() const override {
@@ -151,23 +152,29 @@ public:
 
         void next() override {
             if (m_intervals.empty())
-                    abort();
-            auto t = m_intervals.top();  
+                abort();
+            auto t = m_intervals.top();
+            m_reported_docs.insert(t.document);
             m_intervals.pop();
             top_down_result interval;
             // Left side.
             interval.start = t.start;
             interval.end = t.tails_id;
             if (interval.start < interval.end) {
-                    init_interval(interval);
-                    m_intervals.push(interval);
+                init_interval(interval);
+                m_intervals.push(interval);
             }
             // Right side.
-            interval.start = t.tails_id+1;
+            interval.start = t.tails_id + 1;
             interval.end = t.end;
             if (interval.start < interval.end) {
-                    init_interval(interval);
-                    m_intervals.push(interval);
+                init_interval(interval);
+                m_intervals.push(interval);
+            }
+            // Remove already reported docs from front.
+            while (!m_intervals.empty() &&
+                    m_reported_docs.count(m_intervals.top().document) == 1) {
+                m_intervals.pop();
             }
         }
 
@@ -210,7 +217,7 @@ public:
         m_tails_select.set_vector(&m_tails);
         load_from_cache(m_weights, surf::KEY_WEIGHTS_G + std::to_string(LEVELS), cc, true);
         load_from_cache(m_weights_rmq, surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS), cc, true);
-        load_from_cache(m_documents, surf::KEY_DUP_G, cc);
+        load_from_cache(m_documents, surf::KEY_DOCUMENTS + std::to_string(LEVELS), cc, true);
 
         load_from_cache(m_h, surf::KEY_H, cc, true);
         load_from_cache(m_h_select_0, surf::KEY_H_SELECT_0, cc, true);
@@ -248,7 +255,7 @@ public:
                   sdsl::size_in_bytes(m_tails_rank) <<
                   sdsl::size_in_bytes(m_tails_select) << ";"; // TAILS
         std::cout << sdsl::size_in_bytes(m_weights) +
-                sdsl::size_in_bytes(m_weights_rmq)<< ";"; // WEIGHTS
+                  sdsl::size_in_bytes(m_weights_rmq) << ";"; // WEIGHTS
     }
 };
 
@@ -269,8 +276,8 @@ void construct(idx_top_down<t_csa,
                t_tails_select>& idx,
                const std::string&, sdsl::cache_config& cc, uint8_t num_bytes) {
     using t_wtd = WTD_TYPE;
-    using t_df = surf::df_sada<sdsl::rrr_vector<63>,sdsl::rrr_vector<63>::select_1_type, sdsl::byte_alphabet_tag>;
-    using cst_type = t_df::cst_type; 
+    using t_df = surf::df_sada<sdsl::rrr_vector<63>, sdsl::rrr_vector<63>::select_1_type, sdsl::byte_alphabet_tag>;
+    using cst_type = t_df::cst_type;
     using node_type = typename cst_type::node_type;
     using tails_type = t_tails;
     using tails_rank_type = t_tails_rank;
@@ -329,7 +336,7 @@ void construct(idx_top_down<t_csa,
         t_border_select doc_border_select(&sd_doc_border);
         store_to_cache(doc_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
     }
- 
+
     cout << "...tails" << endl;
     const auto key_tails = surf::KEY_TAILS + std::to_string(LEVELS);
     const auto key_tails_rank = surf::KEY_TAILS_RANK + std::to_string(LEVELS);
@@ -360,7 +367,7 @@ void construct(idx_top_down<t_csa,
 
         int_vector<> old_weights;
         load_from_file(old_weights, cache_file_name(surf::KEY_WEIGHTS_G, cc));
-        const uint64_t bits_per_level = old_weights.size()*2; // TODO set this correctly.
+        const uint64_t bits_per_level = old_weights.size(); // TODO set this correctly.
         bit_vector tails_plain(LEVELS * bits_per_level, 0);
 
         uint64_t doc_cnt = 1;
@@ -410,12 +417,14 @@ void construct(idx_top_down<t_csa,
     cout << "...weights and rmq.";
     const auto key_weights = surf::KEY_WEIGHTS_G + std::to_string(LEVELS);
     const auto key_weights_rmq = surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS);
+    const auto key_documents = surf::KEY_DOCUMENTS + std::to_string(LEVELS);
     if (!cache_file_exists<rmq_type>(surf::KEY_WEIGHTS_RMQ, cc)) {
         // Reorder weights.
         cout << "Construct rmq." << endl;
         int_vector<> old_weights;
+        int_vector<> dup;
         load_from_file(old_weights, cache_file_name(surf::KEY_WEIGHTS_G, cc));
-        cout << "weights size. " << old_weights.size() << endl;
+        load_from_file(dup, cache_file_name(surf::KEY_DUP_G, cc));
 
         tails_type tails;
         load_from_file(tails, cache_file_name(key_tails, cc));
@@ -425,13 +434,20 @@ void construct(idx_top_down<t_csa,
         tails_select.set_vector(&tails);
         tails_rank.set_vector(&tails);
         const uint64_t bits_per_level = old_weights.size();
-        uint64_t num_arrows = tails_rank(bits_per_level*LEVELS);
+        uint64_t num_arrows = tails_rank(bits_per_level * LEVELS);
         int_vector<> weights(num_arrows, 0);
+        int_vector<> documents(num_arrows, 0);
         cout << num_arrows << " vs. " << old_weights.size() << endl;
+        for (uint64_t i = 0; i < weights.size(); i++) {
+            uint64_t idx = tails_select(i + 1) % bits_per_level;
+            weights[i] = old_weights[idx];
+            documents[i] = dup[idx];
+        }
         rmq_type rmq(&weights);
         cout << "rmq_size: " << rmq.size() << endl;
         store_to_cache(weights, key_weights, cc, true);
         store_to_cache(rmq, key_weights_rmq, cc, true);
+        store_to_cache(documents, key_documents, cc, true);
     }
 }
 } // namespace surf

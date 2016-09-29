@@ -341,7 +341,7 @@ void construct(idx_top_down<t_csa,
     const auto key_tails = surf::KEY_TAILS + std::to_string(LEVELS);
     const auto key_tails_rank = surf::KEY_TAILS_RANK + std::to_string(LEVELS);
     const auto key_tails_select = surf::KEY_TAILS_SELECT + std::to_string(LEVELS);
-    if (!cache_file_exists(key_tails, cc))
+    if (!cache_file_exists<tails_type>(key_tails, cc))
     {
         uint64_t max_depth = 0;
         load_from_cache(max_depth, surf::KEY_MAXCSTDEPTH, cc);
@@ -418,7 +418,7 @@ void construct(idx_top_down<t_csa,
     const auto key_weights = surf::KEY_WEIGHTS_G + std::to_string(LEVELS);
     const auto key_weights_rmq = surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS);
     const auto key_documents = surf::KEY_DOCUMENTS + std::to_string(LEVELS);
-    if (!cache_file_exists<rmq_type>(surf::KEY_WEIGHTS_RMQ, cc)) {
+    if (!cache_file_exists<rmq_type>(key_weights_rmq, cc)) {
         // Reorder weights.
         cout << "Construct rmq." << endl;
         int_vector<> old_weights;

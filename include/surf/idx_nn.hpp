@@ -29,7 +29,10 @@ struct map_to_dup_type {
     {}
 
     range_type
-    operator()(size_t sp, size_t ep)const {
+    operator()(size_t sp, size_t ep, const bool SINGLETONS = false)const {
+        if (SINGLETONS) {
+            return {(*m_sel)(sp) + 1, (*m_sel)(ep) - 1};
+        }
         uint64_t y = (*m_sel)(ep);
         if (y == 0)
             return {0, (int_vector<>::size_type) - 1};
@@ -321,10 +324,10 @@ struct map_node_to_dup_type {
     { }
 
     range_type
-    operator()(const t_node& v)const {
+    operator()(const t_node& v, const bool SINGLETONS = false)const {
         auto left    = 1;
         auto left_rb = m_cst->rb(m_cst->select_child(v, left));
-        return m_map(left_rb, left_rb + 1);
+        return m_map(left_rb, left_rb + 1, SINGLETONS);
     }
     // id \in [1..n-1]
     uint64_t id(const t_node& v)const {

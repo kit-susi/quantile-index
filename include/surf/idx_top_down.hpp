@@ -1,6 +1,7 @@
 #pragma once
 #include <stack>
 #include <vector>
+const bool SINGLETONS = true;
 
 #include "sdsl/suffix_trees.hpp"
 #include "surf/topk_interface.hpp"
@@ -122,7 +123,10 @@ public:
                                       begin, end, m_sp, m_ep) > 0;
             m_valid &= !only_match;
             if (m_valid) {
-                auto h_range = m_idx->m_map_to_h(m_sp, m_ep);
+                auto h_range = m_idx->m_map_to_h(m_sp, m_ep, SINGLETONS);
+                std::get<0>(h_range)--;
+                std::get<1>(h_range)++;
+
                 if (!empty(h_range)) {
                     uint64_t offset = idx->m_tails.size() / LEVELS;
                     // <= here instead of < ??? TODO
@@ -367,14 +371,14 @@ void construct(idx_top_down<t_csa,
 
         int_vector<> old_weights;
         load_from_file(old_weights, cache_file_name(surf::KEY_WEIGHTS_G, cc));
-        const uint64_t bits_per_level = old_weights.size(); // TODO set this correctly.
+        const uint64_t bits_per_level = SINGLETONS ? hrrr.size() : old_weights.size();
         bit_vector tails_plain(LEVELS * bits_per_level, 0);
 
         uint64_t doc_cnt = 1;
         load_from_cache(doc_cnt, KEY_DOCCNT, cc);
         typedef std::stack<uint32_t, std::vector<uint32_t>> t_stack;
         //  HELPER to build the pointer structure
-        std::vector<t_stack> depths(doc_cnt, t_stack(std::vector<uint32_t>(1, 0))); // doc_cnt stack for last depth
+        std::vector<t_stack> depths(doc_cnt + 1, t_stack(std::vector<uint32_t>(1, 0))); // doc_cnt stack for last depth
         uint64_t depth = 0;
 
         // DFS traversal of CST
@@ -393,15 +397,28 @@ void construct(idx_top_down<t_csa,
                 } else { // node visited the second time
                     range_type r = map_node_to_dup(v);
                     if (!empty(r)) {
+                        range_type sr = map_node_to_dup(v, SINGLETONS);
+                        assert(std::get<0>(sr) - std::get<0>(r) == std::get<1>(sr) - std::get<1>(r));
                         // Get index of first arrow leaving node.
                         for (size_t i = std::get<0>(r); i <= std::get<1>(r); ++i) {
                             depths[dup[i]].pop();
-                            //P_buf[i] = depths[dup[i]].top();
                             if (depths[dup[i]].top() < LEVELS) {
-                                tails_plain[depths[dup[i]].top()*bits_per_level + i] = 1;
+                                uint64_t j = i + std::get<0>(sr) - std::get<0>(r);
+                                uint64_t idx = depths[dup[i]].top() * bits_per_level + j;
+                                assert(!tails_plain[idx]);
+                                tails_plain[idx] = 1;
                             }
                         }
                     }
+                }
+            } else if (SINGLETONS && v.i > 0) { // First node is empty string.
+                uint64_t sa_pos = v.i;
+                uint64_t d = wtd[sa_pos];
+                uint64_t depth = depths[d].top();
+                if (depth < LEVELS) {
+                    uint64_t idx = depth * bits_per_level + h_select_1(sa_pos);
+                    assert(!tails_plain[idx]);
+                    tails_plain[idx] = 1;
                 }
             }
         }
@@ -426,6 +443,11 @@ void construct(idx_top_down<t_csa,
         load_from_file(old_weights, cache_file_name(surf::KEY_WEIGHTS_G, cc));
         load_from_file(dup, cache_file_name(surf::KEY_DUP_G, cc));
 
+        int_vector<> D;
+        load_from_file(D, cache_file_name(surf::KEY_DARRAY, cc));
+        t_h hrrr;
+        load_from_cache(hrrr, surf::KEY_H, cc, true);
+        t_h::rank_1_type h_rank(&hrrr);
         tails_type tails;
         load_from_file(tails, cache_file_name(key_tails, cc));
         tails_select_type tails_select;
@@ -433,15 +455,28 @@ void construct(idx_top_down<t_csa,
         load_from_file(tails_select, cache_file_name(key_tails_select, cc));
         tails_select.set_vector(&tails);
         tails_rank.set_vector(&tails);
-        const uint64_t bits_per_level = old_weights.size();
+        const uint64_t bits_per_level = SINGLETONS ? hrrr.size() : old_weights.size();
         uint64_t num_arrows = tails_rank(bits_per_level * LEVELS);
         int_vector<> weights(num_arrows, 0);
         int_vector<> documents(num_arrows, 0);
         cout << num_arrows << " vs. " << old_weights.size() << endl;
         for (uint64_t i = 0; i < weights.size(); i++) {
             uint64_t idx = tails_select(i + 1) % bits_per_level;
-            weights[i] = old_weights[idx];
-            documents[i] = dup[idx];
+            if (SINGLETONS) {
+                if (hrrr[idx] == 1) { // Leaf.
+                    weights[i] = 0;
+                    uint64_t sa_pos = h_rank(idx + 1);
+                    if (sa_pos < D.size())
+                        documents[i] = D[sa_pos]; // Can be extraced from SA.
+                } else { // Inner node.
+                    idx =  idx - h_rank(idx); // Count zeros.
+                    weights[i] = old_weights[idx];
+                    documents[i] = dup[idx];
+                }
+            } else {
+                weights[i] = old_weights[idx];
+                documents[i] = dup[idx];
+            }
         }
         rmq_type rmq(&weights);
         cout << "rmq_size: " << rmq.size() << endl;

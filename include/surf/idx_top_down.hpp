@@ -497,8 +497,7 @@ void construct(idx_top_down<t_csa,
         tails_rank.set_vector(&tails);
         const uint64_t bits_per_level = SINGLETONS ? hrrr.size() : old_weights.size();
         uint64_t num_arrows = tails_rank(bits_per_level * LEVELS);
-        int_vector<> weights(num_arrows, 0);
-        //int_vector<> documents(num_arrows, 0);
+        int_vector<> weights(num_arrows, 0, old_weights.width());
         cout << num_arrows << " vs. " << old_weights.size() << endl;
         for (uint64_t i = 0; i < weights.size(); i++) {
             uint64_t idx = tails_select(i + 1) % bits_per_level;
@@ -506,25 +505,20 @@ void construct(idx_top_down<t_csa,
                 if (hrrr[idx] == 1) { // Leaf.
                     weights[i] = 0;
                     uint64_t sa_pos = h_rank(idx + 1);
-                    //if (sa_pos < D.size())
-                    //documents[i] = D[sa_pos]; // Can be extraced from SA.
                 } else { // Inner node.
                     idx =  idx - h_rank(idx); // Count zeros.
                     weights[i] = old_weights[idx];
-                    //documents[i] = dup[idx];
                 }
-            } else {
+            } else
                 weights[i] = old_weights[idx];
-                //documents[i] = dup[idx];
-            }
         }
-        rmq_type rmq(&weights);
-        cout << "rmq_size: " << rmq.size() << endl;
-        //store_to_cache(weights, key_weights, cc, true);
-        store_to_cache(rmq, key_weights_rmq, cc, true);
+        {
+            rmq_type rmq(&weights);
+            cout << "rmq_size: " << rmq.size() << endl;
+            store_to_cache(rmq, key_weights_rmq, cc, true);
+        }
         sdsl::dac_vector<> dac_weights(old_weights);
         store_to_cache(dac_weights, key_weights, cc, true);
-        //store_to_cache(documents, key_documents, cc, true);
     }
     cout << "...DOC_OFFSET" << endl;
     typedef sdsl::hyb_sd_vector<>                      doc_offset_type;

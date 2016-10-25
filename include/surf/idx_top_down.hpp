@@ -75,8 +75,8 @@ private:
     tails_type         m_tails;
     tails_rank_type    m_tails_rank;
     tails_select_type  m_tails_select;
-    int_vector<>       m_weights;
-    rmq_type           m_weights_rmq;
+    dac_vector<>       m_weights;       // Only nonsingletons are stored in H order!
+    rmq_type           m_weights_rmq;   // Tails order including singletons.
     doc_offset_type    m_doc_offset;
     doc_offset_select_type m_doc_offset_select;
     h_type             m_h;
@@ -113,15 +113,14 @@ public:
             assert(interval.tails_id >= interval.start && interval.tails_id < interval.end);
             uint64_t h_pos = m_idx->m_tails_select(interval.tails_id + 1) % m_idx->m_h.size();
             // Zeros in H are duplicates, and ones are singletons.
-            uint64_t num_singletons = m_idx->m_h_rank(h_pos);
-            if (m_idx->m_h[h_pos] == 1) {       // is singleton.
+            uint64_t singletons = m_idx->m_h_rank(h_pos);
+            uint64_t nonsingletons = h_pos - singletons;
+            if (m_idx->m_h[h_pos] == 1) { // is singleton.
                 interval.weight = 1;
-                interval.document = m_idx->sa_to_doc(num_singletons + 1);
+                interval.document = m_idx->sa_to_doc(singletons + 1);
             } else {
-                interval.weight = m_idx->m_weights[interval.tails_id] + 1;
-                interval.document = m_idx->get_doc(
-                                        h_pos - num_singletons, // non-singletons.
-                                        num_singletons);        // singletons.
+                interval.weight = m_idx->m_weights[nonsingletons] + 1;
+                interval.document = m_idx->get_doc(nonsingletons, singletons);
             }
         }
 
@@ -521,8 +520,10 @@ void construct(idx_top_down<t_csa,
         }
         rmq_type rmq(&weights);
         cout << "rmq_size: " << rmq.size() << endl;
-        store_to_cache(weights, key_weights, cc, true);
+        //store_to_cache(weights, key_weights, cc, true);
         store_to_cache(rmq, key_weights_rmq, cc, true);
+        sdsl::dac_vector<> dac_weights(old_weights);
+        store_to_cache(dac_weights, key_weights, cc, true);
         //store_to_cache(documents, key_documents, cc, true);
     }
     cout << "...DOC_OFFSET" << endl;

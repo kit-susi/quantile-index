@@ -53,6 +53,7 @@ const std::string KEY_H = "H";
 const std::string KEY_H_SELECT  = "H_select";
 const std::string KEY_H_SELECT_0  = "H_select_0";
 const std::string KEY_H_SELECT_1  = "H_select_1";
+const std::string KEY_H_RANK  = "H_rank";
 const std::string KEY_NEXT_OCC = "next_occ";
 const std::string KEY_CSA = "csa";
 const std::string KEY_MAXTF = "maxtf";

@@ -59,9 +59,11 @@ public:
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
 
     typedef sdsl::rrr_vector<63>                       h_type;
-    typedef h_type::select_0_type                      h_select_0_type;
+    typedef h_type::rank_1_type                        h_rank_type;
     typedef h_type::select_1_type                      h_select_1_type;
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
+    typedef sdsl::hyb_sd_vector<>                      doc_offset_type;
+    typedef typename doc_offset_type::select_1_type    doc_offset_select_type;
 
 private:
     using token_type = typename topk_interface::token_type;
@@ -75,9 +77,10 @@ private:
     tails_select_type  m_tails_select;
     int_vector<>       m_weights;
     rmq_type           m_weights_rmq;
-    int_vector<>       m_documents;
+    doc_offset_type    m_doc_offset;
+    doc_offset_select_type m_doc_offset_select;
     h_type             m_h;
-    h_select_0_type    m_h_select_0;
+    h_rank_type        m_h_rank;
     h_select_1_type    m_h_select_1;
     map_to_h_type      m_map_to_h;
 
@@ -108,8 +111,18 @@ public:
         void init_interval(top_down_result& interval) {
             interval.tails_id = m_idx->m_weights_rmq(interval.start, interval.end - 1);
             assert(interval.tails_id >= interval.start && interval.tails_id < interval.end);
-            interval.weight = m_idx->m_weights[interval.tails_id] + 1;
-            interval.document = m_idx->m_documents[interval.tails_id]; // TODO: wrong use h mapping.
+            uint64_t h_pos = m_idx->m_tails_select(interval.tails_id + 1) % m_idx->m_h.size();
+            // Zeros in H are duplicates, and ones are singletons.
+            uint64_t num_singletons = m_idx->m_h_rank(h_pos);
+            if (m_idx->m_h[h_pos] == 1) {       // is singleton.
+                interval.weight = 1;
+                interval.document = m_idx->sa_to_doc(num_singletons + 1);
+            } else {
+                interval.weight = m_idx->m_weights[interval.tails_id] + 1;
+                interval.document = m_idx->get_doc(
+                                        h_pos - num_singletons, // non-singletons.
+                                        num_singletons);        // singletons.
+            }
         }
 
     public:
@@ -199,6 +212,25 @@ public:
                            begin, end, multi_occ, only_match));
     }
 
+    // Decode m_doc value at postion index by using offset encoding.
+    uint64_t get_doc(const uint64_t index_zero, const uint64_t index_one) const {
+        // All sa offsets are relative to sa_base_pos (rightmost leaf of left subtree).
+        //uint64_t sa_base_pos = m_h_select_0(index + 1) - index + 1;
+        uint64_t sa_base_pos = index_one + 1;
+        uint64_t base_index = // Index of first dup entry in the node.
+            m_h_select_1(sa_base_pos - 1) + 2 - sa_base_pos;
+        uint64_t sa_delta = // Extract delta from base index to index.
+            (base_index == 0) ?
+            m_doc_offset_select(index_zero + 1) :
+            m_doc_offset_select(index_zero + 1) - m_doc_offset_select(base_index);
+        --sa_delta; // Because zero deltas can't be encoded otherwise.
+        return sa_to_doc(sa_base_pos + sa_delta);
+    }
+
+    uint64_t sa_to_doc(const uint64_t sa_pos) const {
+        return m_border_rank(m_csa[sa_pos]);
+    }
+
     uint64_t doc_cnt() const {
         return m_border_rank(m_csa.size());
     }
@@ -221,12 +253,14 @@ public:
         m_tails_select.set_vector(&m_tails);
         load_from_cache(m_weights, surf::KEY_WEIGHTS_G + std::to_string(LEVELS), cc, true);
         load_from_cache(m_weights_rmq, surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS), cc, true);
-        load_from_cache(m_documents, surf::KEY_DOCUMENTS + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT + std::to_string(LEVELS), cc, true);
+        m_doc_offset_select.set_vector(&m_doc_offset);
 
         load_from_cache(m_h, surf::KEY_H, cc, true);
-        load_from_cache(m_h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        load_from_cache(m_h_rank, surf::KEY_H_RANK, cc, true);
         load_from_cache(m_h_select_1, surf::KEY_H_SELECT_1, cc, true);
-        m_h_select_0.set_vector(&m_h);
+        m_h_rank.set_vector(&m_h);
         m_h_select_1.set_vector(&m_h);
         m_map_to_h = map_to_h_type(&m_h_select_1);
     }
@@ -245,7 +279,11 @@ public:
         written_bytes += m_tails_select.serialize(out, child, "TAILS_SELECT");
         written_bytes += m_weights.serialize(out, child, "WEIGHTS");
         written_bytes += m_weights_rmq.serialize(out, child, "WEIGHTSRMQ");
-        written_bytes += m_documents.serialize(out, child, "DOCS");
+        written_bytes += m_doc_offset.serialize(out, child, "DOC_OFFSET");
+        written_bytes += m_doc_offset_select.serialize(out, child, "DOC_OFFSET_SELECT");
+        written_bytes += m_h.serialize(out, child, "H");
+        written_bytes += m_h_rank.serialize(out, child, "H_RANK");
+        written_bytes += m_h_select_1.serialize(out, child, "H_SELECT_1");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -255,6 +293,9 @@ public:
                   sdsl::size_in_bytes(m_border) +
                   sdsl::size_in_bytes(m_border_rank) +
                   sdsl::size_in_bytes(m_border_select) << ";"; // CSA
+
+        std::cout << sdsl::size_in_bytes(m_doc_offset)
+                  + sdsl::size_in_bytes(m_doc_offset_select) << ";"; // DOC
         std::cout << sdsl::size_in_bytes(m_tails) +
                   sdsl::size_in_bytes(m_tails_rank) <<
                   sdsl::size_in_bytes(m_tails_select) << ";"; // TAILS
@@ -287,7 +328,7 @@ void construct(idx_top_down<t_csa,
     using tails_rank_type = t_tails_rank;
     using tails_select_type = t_tails_select;
     using t_h = sdsl::rrr_vector<63>;
-    using t_h_select_0 = t_h::select_0_type;
+    using t_h_rank = t_h::rank_1_type;
     using t_h_select_1 = t_h::select_1_type;
 
     const auto key_dup = surf::KEY_DUP_G;
@@ -321,10 +362,10 @@ void construct(idx_top_down<t_csa,
         load_from_cache(h, surf::KEY_H, cc);
         t_h hrrr(h);
         store_to_cache(hrrr, surf::KEY_H, cc, true);
-        t_h_select_0 h_select_0(&hrrr);
         t_h_select_1 h_select_1(&hrrr);
-        store_to_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
         store_to_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        t_h_rank h_rank(&hrrr);
+        store_to_cache(h_rank, surf::KEY_H_RANK, cc, true);
     }
     cout << "...DOC_BORDER" << endl;
     if (!cache_file_exists<t_border>(surf::KEY_DOCBORDER, cc) or
@@ -434,7 +475,7 @@ void construct(idx_top_down<t_csa,
     cout << "...weights and rmq.";
     const auto key_weights = surf::KEY_WEIGHTS_G + std::to_string(LEVELS);
     const auto key_weights_rmq = surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS);
-    const auto key_documents = surf::KEY_DOCUMENTS + std::to_string(LEVELS);
+    //const auto key_documents = surf::KEY_DOCUMENTS + std::to_string(LEVELS);
     if (!cache_file_exists<rmq_type>(key_weights_rmq, cc)) {
         // Reorder weights.
         cout << "Construct rmq." << endl;
@@ -458,7 +499,7 @@ void construct(idx_top_down<t_csa,
         const uint64_t bits_per_level = SINGLETONS ? hrrr.size() : old_weights.size();
         uint64_t num_arrows = tails_rank(bits_per_level * LEVELS);
         int_vector<> weights(num_arrows, 0);
-        int_vector<> documents(num_arrows, 0);
+        //int_vector<> documents(num_arrows, 0);
         cout << num_arrows << " vs. " << old_weights.size() << endl;
         for (uint64_t i = 0; i < weights.size(); i++) {
             uint64_t idx = tails_select(i + 1) % bits_per_level;
@@ -466,23 +507,91 @@ void construct(idx_top_down<t_csa,
                 if (hrrr[idx] == 1) { // Leaf.
                     weights[i] = 0;
                     uint64_t sa_pos = h_rank(idx + 1);
-                    if (sa_pos < D.size())
-                        documents[i] = D[sa_pos]; // Can be extraced from SA.
+                    //if (sa_pos < D.size())
+                    //documents[i] = D[sa_pos]; // Can be extraced from SA.
                 } else { // Inner node.
                     idx =  idx - h_rank(idx); // Count zeros.
                     weights[i] = old_weights[idx];
-                    documents[i] = dup[idx];
+                    //documents[i] = dup[idx];
                 }
             } else {
                 weights[i] = old_weights[idx];
-                documents[i] = dup[idx];
+                //documents[i] = dup[idx];
             }
         }
         rmq_type rmq(&weights);
         cout << "rmq_size: " << rmq.size() << endl;
         store_to_cache(weights, key_weights, cc, true);
         store_to_cache(rmq, key_weights_rmq, cc, true);
-        store_to_cache(documents, key_documents, cc, true);
+        //store_to_cache(documents, key_documents, cc, true);
     }
+    cout << "...DOC_OFFSET" << endl;
+    typedef sdsl::hyb_sd_vector<>                      doc_offset_type;
+    const auto key_doc_offset = surf::KEY_DOC_OFFSET + std::to_string(LEVELS);
+    const auto key_doc_offset_select = surf::KEY_DOC_OFFSET_SELECT + std::to_string(LEVELS);
+    if (!cache_file_exists<doc_offset_type>(key_doc_offset, cc)) {
+        int_vector<> darray, dup;
+        load_from_cache(darray, surf::KEY_DARRAY, cc);
+        load_from_cache(dup, surf::KEY_DUP_G, cc);
+        t_h hrrr;
+        load_from_cache(hrrr, surf::KEY_H, cc, true);
+        t_h_select_1 h_select_1;
+        load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        h_select_1.set_vector(&hrrr);
+
+        // Iterate through all nodes.
+        uint64_t start = 0;
+        uint64_t end;
+        // For each dup value offset o such that darray[nodeIndex+o+1] = dup.
+        std::vector<uint64_t> sa_offset;
+        uint64_t sd_n = 1;
+        for (uint64_t i = 1; i <= darray.size(); ++i) {
+            end = h_select_1(i) + 1 - i;
+            if (start < end) { // Dup lens
+                std::vector<uint64_t> dup_set(dup.begin() + start, dup.begin() + end);
+                uint64_t sa_pos = i;
+                uint64_t j = 0;
+                while (j < dup_set.size()) {
+                    if (dup_set[j] == darray[sa_pos]) {
+                        // Store offset.
+                        sa_offset.push_back(sa_pos - i);
+                        ++j;
+                    }
+                    if (sa_pos >= darray.size()) {
+                        cout << "ERROR: sa_pos is out of bounds." << endl;
+                        return;
+                    }
+                    ++sa_pos;
+                }
+                // sd_n computation.
+                // encode first value + 1.
+                sd_n += sa_offset[start] + 1; // +1 because zero deltas can't be encoded.
+                for (size_t j = start + 1; j < end; ++j)
+                    sd_n += sa_offset[j] - sa_offset[j - 1]; // encode deltas.
+            }
+            start = end;
+        }
+        sdsl::bit_vector plain_bv(sd_n);
+        start = 0;
+        uint64_t cur_pos = 0;
+        for (uint64_t i = 1; i < darray.size(); ++i) {
+            end = h_select_1(i) + 1 - i;
+            if (start < end) { // Dup lens
+                cur_pos += sa_offset[start] + 1;
+                plain_bv[cur_pos] = 1;
+                for (size_t j = start + 1; j < end; ++j) {
+                    cur_pos += sa_offset[j] - sa_offset[j - 1];
+                    plain_bv[cur_pos] = 1;
+                }
+            }
+            start = end;
+        }
+        doc_offset_type doc_offset(plain_bv);
+        // Build select.
+        typename doc_offset_type::select_1_type doc_offset_select(&doc_offset);
+        store_to_cache(doc_offset, key_doc_offset, cc, true);
+        store_to_cache(doc_offset_select, key_doc_offset_select, cc, true);
+    }
+
 }
 } // namespace surf

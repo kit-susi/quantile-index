@@ -109,7 +109,7 @@ public:
             interval.tails_id = m_idx->m_weights_rmq(interval.start, interval.end - 1);
             assert(interval.tails_id >= interval.start && interval.tails_id < interval.end);
             uint64_t h_pos = m_idx->m_tails.select(
-                    interval.tails_id - interval.offset + 1, interval.depth);
+                                 interval.tails_id - interval.offset + 1, interval.depth);
             // Zeros in H are duplicates, and ones are singletons.
             uint64_t singletons = m_idx->m_h_rank(h_pos);
             uint64_t nonsingletons = h_pos - singletons;
@@ -375,7 +375,7 @@ void construct(idx_top_down<t_csa,
     cout << "...tails" << endl;
     const auto key_tails = surf::KEY_TAILS + std::to_string(LEVELS);
     if (!cache_file_exists<tails_type>(key_tails, cc))
-        {
+    {
         uint64_t max_depth = 0;
         load_from_cache(max_depth, surf::KEY_MAXCSTDEPTH, cc);
 
@@ -474,9 +474,11 @@ void construct(idx_top_down<t_csa,
         cout << bits_per_level << " vs. " << old_weights.size() << endl;
         {
             uint64_t offsets[256];
+            offsets[0] = 0;
             // Init offsets.
-            for (uint64_t i = 1; i < 256; ++i)
-                offsets[i] = offsets[i-1] + tails.rank(tails.size(), i-1);
+            for (uint64_t i = 1; i < 256; ++i) {
+                offsets[i] = offsets[i - 1] + tails.rank(tails.size(), i - 1);
+            }
             for (uint64_t i = 0; i < tails.size(); ++i) {
                 uint64_t depth = tails[i];
                 if (hrrr[i] == 1) { // Leaf.

@@ -40,9 +40,7 @@ template<typename t_csa,
          typename t_border_rank = typename t_border::rank_1_type,
          typename t_border_select = typename t_border::select_1_type,
          int LEVELS = 10,
-         typename t_tails = sdsl::hyb_sd_vector<>,
-         typename t_tails_rank = typename t_tails::rank_1_type,
-         typename t_tails_select = typename t_tails::select_1_type>
+         typename t_tails = sdsl::wt_huff<>>
 class idx_top_down
     : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
 
@@ -52,8 +50,6 @@ public:
     typedef t_border_rank                              border_rank_type;
     typedef t_border_select                            border_select_type;
     typedef t_tails                                    tails_type;
-    typedef t_tails_rank                               tails_rank_type;
-    typedef t_tails_select                             tails_select_type;
     using size_type = sdsl::int_vector<>::size_type;
     typedef typename t_csa::alphabet_category          alphabet_category;
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
@@ -73,8 +69,6 @@ private:
     border_rank_type   m_border_rank;
     border_select_type m_border_select;
     tails_type         m_tails;
-    tails_rank_type    m_tails_rank;
-    tails_select_type  m_tails_select;
     dac_vector<>       m_weights;       // Only nonsingletons are stored in H order!
     rmq_type           m_weights_rmq;   // Tails order including singletons.
     doc_offset_type    m_doc_offset;
@@ -101,6 +95,9 @@ public:
             // Interval in [in tails ids].
             uint64_t start;
             uint64_t end; // exclusive.
+            // Only for navigation purposes.
+            uint64_t offset; // Start of level in tails id.
+            uint64_t depth; // Tree depth of interval.
             bool operator<(const top_down_result& obj) const {
                 return weight < obj.weight;
             }
@@ -111,7 +108,8 @@ public:
         void init_interval(top_down_result& interval) {
             interval.tails_id = m_idx->m_weights_rmq(interval.start, interval.end - 1);
             assert(interval.tails_id >= interval.start && interval.tails_id < interval.end);
-            uint64_t h_pos = m_idx->m_tails_select(interval.tails_id + 1) % m_idx->m_h.size();
+            uint64_t h_pos = m_idx->m_tails.select(
+                    interval.tails_id - interval.offset + 1, interval.depth);
             // Zeros in H are duplicates, and ones are singletons.
             uint64_t singletons = m_idx->m_h_rank(h_pos);
             uint64_t nonsingletons = h_pos - singletons;
@@ -140,16 +138,19 @@ public:
                 std::get<1>(h_range)++;
 
                 if (!empty(h_range)) {
-                    uint64_t offset = idx->m_tails.size() / LEVELS;
+                    uint64_t offset = 0;
                     // <= here instead of < ??? TODO
-                    for (int64_t depth = 0; depth <= (end - begin); ++depth) {
+                    for (uint64_t depth = 0; depth <= (end - begin); ++depth) {
                         top_down_result interval;
-                        interval.start = idx->m_tails_rank(depth * offset + std::get<0>(h_range));
-                        interval.end = idx->m_tails_rank(depth * offset + std::get<1>(h_range) + 1);
+                        interval.start = idx->m_tails.rank(std::get<0>(h_range), depth) + offset;
+                        interval.end = idx->m_tails.rank(std::get<1>(h_range) + 1, depth) + offset;
+                        interval.offset = offset;
+                        interval.depth = depth;
                         if (interval.start < interval.end) {
                             init_interval(interval);
                             m_intervals.push(interval);
                         }
+                        offset += idx->m_tails.rank(idx->m_tails.size(), depth); // TODO dont do this for last.
                     }
                 }
             }
@@ -176,6 +177,8 @@ public:
             // Left side.
             interval.start = t.start;
             interval.end = t.tails_id;
+            interval.offset = t.offset;
+            interval.depth = t.depth;
             if (interval.start < interval.end) {
                 init_interval(interval);
                 m_intervals.push(interval);
@@ -183,6 +186,8 @@ public:
             // Right side.
             interval.start = t.tails_id + 1;
             interval.end = t.end;
+            interval.offset = t.offset;
+            interval.depth = t.depth;
             if (interval.start < interval.end) {
                 init_interval(interval);
                 m_intervals.push(interval);
@@ -246,10 +251,6 @@ public:
         load_from_cache(m_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
         m_border_select.set_vector(&m_border);
         load_from_cache(m_tails, surf::KEY_TAILS + std::to_string(LEVELS), cc, true);
-        load_from_cache(m_tails_rank, surf::KEY_TAILS_RANK + std::to_string(LEVELS), cc, true);
-        load_from_cache(m_tails_select, surf::KEY_TAILS_SELECT + std::to_string(LEVELS), cc, true);
-        m_tails_rank.set_vector(&m_tails);
-        m_tails_select.set_vector(&m_tails);
         load_from_cache(m_weights, surf::KEY_WEIGHTS_G + std::to_string(LEVELS), cc, true);
         load_from_cache(m_weights_rmq, surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS), cc, true);
         load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET + std::to_string(LEVELS), cc, true);
@@ -274,8 +275,6 @@ public:
         written_bytes += m_border_rank.serialize(out, child, "BORDER_RANK");
         written_bytes += m_border_select.serialize(out, child, "BORDER_SELECT");
         written_bytes += m_tails.serialize(out, child, "TAILS");
-        written_bytes += m_tails_rank.serialize(out, child, "TAILS_RANK");
-        written_bytes += m_tails_select.serialize(out, child, "TAILS_SELECT");
         written_bytes += m_weights.serialize(out, child, "WEIGHTS");
         written_bytes += m_weights_rmq.serialize(out, child, "WEIGHTSRMQ");
         written_bytes += m_doc_offset.serialize(out, child, "DOC_OFFSET");
@@ -295,9 +294,7 @@ public:
 
         std::cout << sdsl::size_in_bytes(m_doc_offset)
                   + sdsl::size_in_bytes(m_doc_offset_select) << ";"; // DOC
-        std::cout << sdsl::size_in_bytes(m_tails) +
-                  sdsl::size_in_bytes(m_tails_rank) <<
-                  sdsl::size_in_bytes(m_tails_select) << ";"; // TAILS
+        std::cout << sdsl::size_in_bytes(m_tails) << ";"; // TAILS
         std::cout << sdsl::size_in_bytes(m_weights) +
                   sdsl::size_in_bytes(m_weights_rmq) << ";"; // WEIGHTS
     }
@@ -308,24 +305,18 @@ template<typename t_csa,
          typename t_border_rank,
          typename t_border_select,
          int LEVELS,
-         typename t_tails,
-         typename t_tails_rank,
-         typename t_tails_select>
+         typename t_tails>
 void construct(idx_top_down<t_csa,
                t_border, t_border_rank,
                t_border_select,
                LEVELS,
-               t_tails,
-               t_tails_rank,
-               t_tails_select>& idx,
+               t_tails>& idx,
                const std::string&, sdsl::cache_config& cc, uint8_t num_bytes) {
     using t_wtd = WTD_TYPE;
     using t_df = surf::df_sada<sdsl::rrr_vector<63>, sdsl::rrr_vector<63>::select_1_type, sdsl::byte_alphabet_tag>;
     using cst_type = t_df::cst_type;
     using node_type = typename cst_type::node_type;
     using tails_type = t_tails;
-    using tails_rank_type = t_tails_rank;
-    using tails_select_type = t_tails_select;
     using t_h = sdsl::rrr_vector<63>;
     using t_h_rank = t_h::rank_1_type;
     using t_h_select_1 = t_h::select_1_type;
@@ -383,10 +374,8 @@ void construct(idx_top_down<t_csa,
 
     cout << "...tails" << endl;
     const auto key_tails = surf::KEY_TAILS + std::to_string(LEVELS);
-    const auto key_tails_rank = surf::KEY_TAILS_RANK + std::to_string(LEVELS);
-    const auto key_tails_select = surf::KEY_TAILS_SELECT + std::to_string(LEVELS);
     if (!cache_file_exists<tails_type>(key_tails, cc))
-    {
+        {
         uint64_t max_depth = 0;
         load_from_cache(max_depth, surf::KEY_MAXCSTDEPTH, cc);
 
@@ -412,7 +401,7 @@ void construct(idx_top_down<t_csa,
         int_vector<> old_weights;
         load_from_file(old_weights, cache_file_name(surf::KEY_WEIGHTS_G, cc));
         const uint64_t bits_per_level = SINGLETONS ? hrrr.size() : old_weights.size();
-        bit_vector tails_plain(LEVELS * bits_per_level, 0);
+        int_vector<8>  tails_plain(bits_per_level);
 
         uint64_t doc_cnt = 1;
         load_from_cache(doc_cnt, KEY_DOCCNT, cc);
@@ -442,12 +431,10 @@ void construct(idx_top_down<t_csa,
                         // Get index of first arrow leaving node.
                         for (size_t i = std::get<0>(r); i <= std::get<1>(r); ++i) {
                             depths[dup[i]].pop();
-                            if (depths[dup[i]].top() < LEVELS) {
-                                uint64_t j = i + std::get<0>(sr) - std::get<0>(r);
-                                uint64_t idx = depths[dup[i]].top() * bits_per_level + j;
-                                assert(!tails_plain[idx]);
-                                tails_plain[idx] = 1;
-                            }
+                            uint64_t idx = i + std::get<0>(sr) - std::get<0>(r);
+                            uint64_t depth = depths[dup[i]].top();
+                            assert(!tails_plain[idx]);
+                            tails_plain[idx] = std::min(depth, (uint64_t)255);
                         }
                     }
                 }
@@ -455,26 +442,18 @@ void construct(idx_top_down<t_csa,
                 uint64_t sa_pos = v.i;
                 uint64_t d = wtd[sa_pos];
                 uint64_t depth = depths[d].top();
-                if (depth < LEVELS) {
-                    uint64_t idx = depth * bits_per_level + h_select_1(sa_pos);
-                    assert(!tails_plain[idx]);
-                    tails_plain[idx] = 1;
-                }
+                uint64_t idx = h_select_1(sa_pos);
+                assert(!tails_plain[idx]);
+                tails_plain[idx] = depth;
             }
         }
-        //P_buf.close();
-        tails_type tails(tails_plain);
-        load_from_file(tails_plain, cache_file_name(key_tails, cc));
-        tails_select_type ts(&tails);
-        tails_rank_type tr(&tails);
+        tails_type tails;
+        sdsl::construct_im(tails, tails_plain);
         store_to_cache(tails, key_tails, cc, true);
-        store_to_cache(tr, key_tails_rank, cc, true);
-        store_to_cache(ts, key_tails_select, cc, true);
     }
     cout << "...weights and rmq.";
     const auto key_weights = surf::KEY_WEIGHTS_G + std::to_string(LEVELS);
     const auto key_weights_rmq = surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS);
-    //const auto key_documents = surf::KEY_DOCUMENTS + std::to_string(LEVELS);
     if (!cache_file_exists<rmq_type>(key_weights_rmq, cc)) {
         // Reorder weights.
         cout << "Construct rmq." << endl;
@@ -490,27 +469,23 @@ void construct(idx_top_down<t_csa,
         t_h::rank_1_type h_rank(&hrrr);
         tails_type tails;
         load_from_file(tails, cache_file_name(key_tails, cc));
-        tails_select_type tails_select;
-        tails_rank_type tails_rank;
-        load_from_file(tails_select, cache_file_name(key_tails_select, cc));
-        tails_select.set_vector(&tails);
-        tails_rank.set_vector(&tails);
         const uint64_t bits_per_level = SINGLETONS ? hrrr.size() : old_weights.size();
-        uint64_t num_arrows = tails_rank(bits_per_level * LEVELS);
-        int_vector<> weights(num_arrows, 0, old_weights.width());
-        cout << num_arrows << " vs. " << old_weights.size() << endl;
-        for (uint64_t i = 0; i < weights.size(); i++) {
-            uint64_t idx = tails_select(i + 1) % bits_per_level;
-            if (SINGLETONS) {
-                if (hrrr[idx] == 1) { // Leaf.
-                    weights[i] = 0;
-                    uint64_t sa_pos = h_rank(idx + 1);
+        int_vector<> weights(bits_per_level, 0, old_weights.width());
+        cout << bits_per_level << " vs. " << old_weights.size() << endl;
+        {
+            uint64_t offsets[256];
+            // Init offsets.
+            for (uint64_t i = 1; i < 256; ++i)
+                offsets[i] = offsets[i-1] + tails.rank(tails.size(), i-1);
+            for (uint64_t i = 0; i < tails.size(); ++i) {
+                uint64_t depth = tails[i];
+                if (hrrr[i] == 1) { // Leaf.
+                    weights[offsets[depth]++] = 0;
                 } else { // Inner node.
-                    idx =  idx - h_rank(idx); // Count zeros.
-                    weights[i] = old_weights[idx];
+                    uint64_t idx =  i - h_rank(i); // Count zeros.
+                    weights[offsets[depth]++] = old_weights[idx];
                 }
-            } else
-                weights[i] = old_weights[idx];
+            }
         }
         {
             rmq_type rmq(&weights);

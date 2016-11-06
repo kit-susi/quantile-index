@@ -1,7 +1,7 @@
 #pragma once
 #include <stack>
 #include <vector>
-const bool SINGLETONS = true;
+const bool SINGLETONS = false;
 
 #include "sdsl/suffix_trees.hpp"
 #include "surf/topk_interface.hpp"
@@ -57,6 +57,7 @@ public:
     typedef sdsl::rrr_vector<63>                       h_type;
     typedef h_type::rank_1_type                        h_rank_type;
     typedef h_type::select_1_type                      h_select_1_type;
+    typedef h_type::select_0_type                      h_select_0_type;
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
     typedef sdsl::hyb_sd_vector<>                      doc_offset_type;
     typedef typename doc_offset_type::select_1_type    doc_offset_select_type;
@@ -76,6 +77,7 @@ private:
     h_type             m_h;
     h_rank_type        m_h_rank;
     h_select_1_type    m_h_select_1;
+    h_select_0_type    m_h_select_0;
     map_to_h_type      m_map_to_h;
 
 public:
@@ -110,10 +112,14 @@ public:
             assert(interval.tails_id >= interval.start && interval.tails_id < interval.end);
             uint64_t h_pos = m_idx->m_tails.select(
                                  interval.tails_id - interval.offset + 1, interval.depth);
+            if (!SINGLETONS)
+                h_pos = m_idx->m_h_select_0(h_pos + 1);
+
             // Zeros in H are duplicates, and ones are singletons.
             uint64_t singletons = m_idx->m_h_rank(h_pos);
             uint64_t nonsingletons = h_pos - singletons;
             if (m_idx->m_h[h_pos] == 1) { // is singleton.
+                assert(SINGLETONS);
                 interval.weight = 1;
                 interval.document = m_idx->sa_to_doc(singletons + 1);
             } else {
@@ -134,9 +140,10 @@ public:
             m_valid &= !only_match;
             if (m_valid) {
                 auto h_range = m_idx->m_map_to_h(m_sp, m_ep, SINGLETONS);
-                std::get<0>(h_range)--;
-                std::get<1>(h_range)++;
-
+                if (SINGLETONS) {
+                    std::get<0>(h_range)--;
+                    std::get<1>(h_range)++;
+                }
                 if (!empty(h_range)) {
                     uint64_t offset = 0;
                     // <= here instead of < ??? TODO
@@ -260,8 +267,10 @@ public:
         load_from_cache(m_h, surf::KEY_H, cc, true);
         load_from_cache(m_h_rank, surf::KEY_H_RANK, cc, true);
         load_from_cache(m_h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        load_from_cache(m_h_select_0, surf::KEY_H_SELECT_0, cc, true);
         m_h_rank.set_vector(&m_h);
         m_h_select_1.set_vector(&m_h);
+        m_h_select_0.set_vector(&m_h);
         m_map_to_h = map_to_h_type(&m_h_select_1);
     }
 
@@ -282,6 +291,7 @@ public:
         written_bytes += m_h.serialize(out, child, "H");
         written_bytes += m_h_rank.serialize(out, child, "H_RANK");
         written_bytes += m_h_select_1.serialize(out, child, "H_SELECT_1");
+        written_bytes += m_h_select_0.serialize(out, child, "H_SELECT_0");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -320,6 +330,7 @@ void construct(idx_top_down<t_csa,
     using t_h = sdsl::rrr_vector<63>;
     using t_h_rank = t_h::rank_1_type;
     using t_h_select_1 = t_h::select_1_type;
+    using t_h_select_0 = t_h::select_0_type;
 
     const auto key_dup = surf::KEY_DUP_G;
     const auto key_df = surf::KEY_SADADF_G;
@@ -353,7 +364,9 @@ void construct(idx_top_down<t_csa,
         t_h hrrr(h);
         store_to_cache(hrrr, surf::KEY_H, cc, true);
         t_h_select_1 h_select_1(&hrrr);
+        t_h_select_0 h_select_0(&hrrr);
         store_to_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        store_to_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
         t_h_rank h_rank(&hrrr);
         store_to_cache(h_rank, surf::KEY_H_RANK, cc, true);
     }
@@ -434,14 +447,14 @@ void construct(idx_top_down<t_csa,
                             uint64_t idx = i + std::get<0>(sr) - std::get<0>(r);
                             uint64_t depth = depths[dup[i]].top();
                             assert(!tails_plain[idx]);
-                            tails_plain[idx] = std::min(depth, (uint64_t)255);
+                            tails_plain[idx] = std::min(depth, (uint64_t)31);
                         }
                     }
                 }
             } else if (SINGLETONS && v.i > 0) { // First node is empty string.
                 uint64_t sa_pos = v.i;
                 uint64_t d = wtd[sa_pos];
-                uint64_t depth = depths[d].top();
+                uint64_t depth = std::min(depths[d].top(), (uint32_t)31);
                 uint64_t idx = h_select_1(sa_pos);
                 assert(!tails_plain[idx]);
                 tails_plain[idx] = depth;
@@ -473,19 +486,23 @@ void construct(idx_top_down<t_csa,
         int_vector<> weights(bits_per_level, 0, old_weights.width());
         cout << bits_per_level << " vs. " << old_weights.size() << endl;
         {
-            uint64_t offsets[256];
+            uint64_t offsets[32];
             offsets[0] = 0;
             // Init offsets.
-            for (uint64_t i = 1; i < 256; ++i) {
+            for (uint64_t i = 1; i < 32; ++i) {
                 offsets[i] = offsets[i - 1] + tails.rank(tails.size(), i - 1);
             }
             for (uint64_t i = 0; i < tails.size(); ++i) {
                 uint64_t depth = tails[i];
-                if (hrrr[i] == 1) { // Leaf.
-                    weights[offsets[depth]++] = 0;
-                } else { // Inner node.
-                    uint64_t idx =  i - h_rank(i); // Count zeros.
-                    weights[offsets[depth]++] = old_weights[idx];
+                if (SINGLETONS) {
+                    if (hrrr[i] == 1) {  // Leaf.
+                        weights[offsets[depth]++] = 0;
+                    } else { // Inner node.
+                        uint64_t idx =  i - h_rank(i); // Count zeros.
+                        weights[offsets[depth]++] = old_weights[idx];
+                    }
+                } else {
+                    weights[offsets[depth]++] = old_weights[i];
                 }
             }
         }

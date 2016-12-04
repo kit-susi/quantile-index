@@ -58,7 +58,7 @@ def get_collection_type(directory):
     elif os.path.exists('%s/text_SURF.sdsl' % directory):
         return 'text'
     else:
-        raise Exception("Not a susie collection: %d" % directory)
+        raise Exception("Not a SUSI collection: %d" % directory)
 
 def print_side_by_side(a, b):
     for i in range(max(len(a), len(b))):
@@ -188,6 +188,7 @@ if __name__ == '__main__':
             res.align[cols[0]] = 'l'
             for c in cols[1:]: res.align[c] = 'r'
 
+            result_count = 0
             for config in args.targets:
                 print '    Running with %s' % config
                 cmd = [
@@ -212,7 +213,10 @@ if __name__ == '__main__':
                     # check correctness only for q = 1
                     lines = out.strip().splitlines()
                     parts = [l.split(';') for l in lines]
-                    result = [(int(docid), float(score)) for _, _, docid, score in parts]
+                    result = [(int(docid), float(score))
+                                for _, _, docid, score in parts]
+                    result_count = max(result_count, len(result))
+
                     if not result_makes_sense(result, args.e):
                         print 'Queries:', repr(queries)
                         print 'Result is not sorted:', result
@@ -232,6 +236,7 @@ if __name__ == '__main__':
                     maxi = int(out.split('time_per_query_max = ')[1].split()[0])
                     sigma = float(out.split('time_per_query_sigma = ')[1].split()[0])
                     res.add_row([config,avg,median,maxi,sigma])
+            print 'Results: %d' % result_count
             if args.q != 1:
                 print 'Time per query (sorted by Avg)'
                 print res.get_string(sortby='Avg')

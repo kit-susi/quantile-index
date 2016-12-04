@@ -323,9 +323,8 @@ void construct(idx_top_down<t_csa,
                t_tails>& idx,
                const std::string&, sdsl::cache_config& cc, uint8_t num_bytes) {
     using t_wtd = WTD_TYPE;
-    using t_df = surf::df_sada<sdsl::rrr_vector<63>, sdsl::rrr_vector<63>::select_1_type, sdsl::byte_alphabet_tag>;
-    using cst_type = t_df::cst_type;
-    using node_type = typename cst_type::node_type;
+    using t_df = surf::df_sada<t_csa, sdsl::rrr_vector<63>, sdsl::rrr_vector<63>::select_1_type>;
+    using cst_type = typename t_df::cst_type;
     using tails_type = t_tails;
     using t_h = sdsl::rrr_vector<63>;
     using t_h_rank = t_h::rank_1_type;

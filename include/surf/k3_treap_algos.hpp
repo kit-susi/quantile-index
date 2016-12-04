@@ -622,7 +622,7 @@ topk_intersect3(const t_k3_treap& t, size_t k,
             }
         }
     }
-    std::cerr << "k3 iters=" << iters << " splits=" << splits << std::endl;
+    //std::cerr << "k3 iters=" << iters << " splits=" << splits << std::endl;
 
     return result.sorted_result();
 }

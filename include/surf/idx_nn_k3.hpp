@@ -279,6 +279,7 @@ public:
                         ++it;
                     }
                     std::sort(tmp.begin(), tmp.end());
+                    /*
                     {
                         std::ofstream f("/tmp/f1", std::ofstream::app);
                         f << tmp.size() << " ";
@@ -286,6 +287,7 @@ public:
                             f << it.first << " " << it.second << " ";
                         f << std::endl;
                     }
+                    */
 
                     if (i == 0) {
                         m_results = std::move(tmp);

@@ -180,8 +180,8 @@ int main(int argc, char* argv[])
 
     if (!args.verbose) {
         cout << "# pattern_file = " << args.query_file << endl;
-        cout << "# doc_cnt = " << idx.doc_cnt() << endl;
-        cout << "# word_cnt = " << idx.word_cnt() << endl;
+        //cout << "# doc_cnt = " << idx.doc_cnt() << endl;
+        //cout << "# word_cnt = " << idx.word_cnt() << endl;
         cout << "# k = " << args.k << endl;
         cout << "# match_only = " << args.match_only << std::endl;
         cout << "# multi_occ = " << args.multi_occ << std::endl;

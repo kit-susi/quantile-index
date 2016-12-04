@@ -22,12 +22,30 @@ namespace surf {
 
 template<typename t_alphabet>
 struct df_sada_trait {
-    typedef sdsl::cst_sct3<sdsl::csa_wt<sdsl::wt_int<sdsl::rrr_vector<64>>>, sdsl::lcp_dac<>, sdsl::bp_support_sada<>, sdsl::bit_vector, sdsl::rank_support_v<>, sdsl::select_support_mcl<>> cst_type;
+    //typedef sdsl::cst_sct3<sdsl::csa_wt<sdsl::wt_int<sdsl::rrr_vector<64>>>, sdsl::lcp_dac<>, sdsl::bp_support_sada<>, sdsl::bit_vector, sdsl::rank_support_v<>, sdsl::select_support_mcl<>> cst_type;
+    typedef sdsl::cst_sct3<
+        sdsl::csa_wt<
+            sdsl::wt_int<sdsl::rrr_vector<63>>,1000000,1000000>,
+        sdsl::lcp_dac<>,
+        sdsl::bp_support_sada<>,
+        sdsl::bit_vector,
+        sdsl::rank_support_v<>,
+        sdsl::select_support_mcl<>> cst_type;
 };
 
 template<>
 struct df_sada_trait<sdsl::byte_alphabet_tag> {
-    typedef sdsl::cst_sct3<sdsl::csa_wt<sdsl::wt_huff<sdsl::rrr_vector<64>>>, sdsl::lcp_dac<>, sdsl::bp_support_sada<>, sdsl::bit_vector, sdsl::rank_support_v<>, sdsl::select_support_mcl<>> cst_type;
+    //typedef sdsl::cst_sct3<sdsl::csa_wt<sdsl::wt_huff<sdsl::rrr_vector<64>>>, sdsl::lcp_dac<>, sdsl::bp_support_sada<>, sdsl::bit_vector, sdsl::rank_support_v<>, sdsl::select_support_mcl<>> cst_type;
+    typedef sdsl::cst_sct3<
+        sdsl::csa_wt<
+            sdsl::wt_huff<sdsl::hyb_vector<>>,
+            32,32, sdsl::text_order_sa_sampling<>,
+            sdsl::text_order_isa_sampling_support<>>,
+        sdsl::lcp_dac<>,
+        sdsl::bp_support_sada<>,
+        sdsl::bit_vector,
+        sdsl::rank_support_v<>,
+        sdsl::select_support_mcl<>> cst_type;
 };
 
 //! Constant time and 2n+o(n) size structure for document frequency
@@ -45,19 +63,25 @@ struct df_sada_trait<sdsl::byte_alphabet_tag> {
  *      text retrieval systems'', JDA 2007.
  *  [2] Simon Gog and Matthias Petri: TODO 2014.
  */
-template<typename t_bv = sdsl::bit_vector,
+template<typename t_csa,
+         typename t_bv = sdsl::bit_vector,
          typename t_sel = typename t_bv::select_1_type,
-         typename t_alphabet = sdsl::int_alphabet_tag,
          bool t_greedy_order = true>
 class df_sada {
 public:
     typedef typename sdsl::int_vector<>::size_type size_type;
     typedef t_bv  bit_vector_type;
     typedef t_sel select_type;
-    typedef t_alphabet alphabet_category;
     static const bool greedy_order = t_greedy_order;
 
-    typedef typename df_sada_trait<t_alphabet>::cst_type cst_type;
+    using alphabet_category = typename t_csa::alphabet_category;
+    using cst_type = typename sdsl::cst_sct3<
+        t_csa,
+        sdsl::lcp_dac<>,
+        sdsl::bp_support_sada<>,
+        sdsl::bit_vector,
+        sdsl::rank_support_v<>,
+        sdsl::select_support_mcl<>>;
 private:
     bit_vector_type m_bv;
     select_type     m_sel;
@@ -278,11 +302,14 @@ public:
     }
 };
 
-template<typename t_bv, typename t_sel, typename t_alphabet, bool greedy_order>
-void construct(df_sada<t_bv, t_sel, t_alphabet, greedy_order>& idx, const string& file,
+template<typename t_csa, typename t_bv, typename t_sel, bool greedy_order>
+void construct(df_sada<t_csa, t_bv, t_sel, greedy_order>& idx,
+               const string& file,
                sdsl::cache_config& cc, uint8_t) {
     using namespace sdsl;
-    typedef df_sada<t_bv, t_sel, t_alphabet, greedy_order> df_sada_type;
+    using df_sada_type = df_sada<t_csa, t_bv, t_sel, greedy_order>;
+    using t_alphabet = typename df_sada_type::alphabet_category;
+    using cst_type = typename df_sada_type::cst_type;
 
     cout << "construct(df_sada)" << endl;
     if (!cache_file_exists(conf::KEY_SA, cc)) {
@@ -301,7 +328,6 @@ void construct(df_sada<t_bv, t_sel, t_alphabet, greedy_order>& idx, const string
         }
     }
     register_cache_file(conf::KEY_LCP, cc);
-    using cst_type = typename df_sada<t_bv, t_sel, t_alphabet, greedy_order>::cst_type;
     if (!cache_file_exists<cst_type>(KEY_TMPCST, cc)) {
         auto event = memory_monitor::event("construct cst");
         cst_type cst = cst_type(cc);
@@ -314,7 +340,7 @@ void construct(df_sada<t_bv, t_sel, t_alphabet, greedy_order>& idx, const string
 
     cout << "doc_cnt = " << doc_cnt << endl;
 
-    construct_darray<t_alphabet::WIDTH>(cc);
+    construct_darray<df_sada_type::alphabet_category::WIDTH>(cc);
 
 
     string d_file = cache_file_name(surf::KEY_DARRAY, cc);

@@ -5,3 +5,4 @@
 #include "idx_nn_k2_daat.hpp"
 #include "idx_nn_k3.hpp"
 #include "idx_top_down.hpp"
+#include "idx_d.hpp"

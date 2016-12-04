@@ -89,6 +89,9 @@ sort_topk_results(topk_result_set* results) {
                   return std::make_pair(-a.second, a.first) <
                     std::make_pair(-b.second, b.first);
               });
+    // remove negative weights (we use this as a workaround inside idx_d to
+    // implement multi_occ=true)
+    while(!results->empty() && results->back().second < 0) results->pop_back();
     return std::make_unique<vector_topk_iterator<t_token>>(*results);
 }
 

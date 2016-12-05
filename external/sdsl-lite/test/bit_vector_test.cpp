@@ -13,6 +13,9 @@ namespace
 template<class T>
 class bit_vector_test : public ::testing::Test { };
 
+template<class T>
+class bit_vector_test_bv_only : public ::testing::Test { };
+
 using testing::Types;
 
 typedef Types<
@@ -35,14 +38,15 @@ rrr_vector<127>,
 rrr_vector<128>,
 sd_vector<>,
 sd_vector<rrr_vector<63> >,
-hyb_vector<>,
-hyb_sd_vector<>
+hyb_vector<>
 > Implementations;
 
+typedef Types<
+bit_vector
+> Implementations_BV_Only;
 
 
 TYPED_TEST_CASE(bit_vector_test, Implementations);
-
 
 //! Test operator[]
 TYPED_TEST(bit_vector_test, access)
@@ -53,7 +57,7 @@ TYPED_TEST(bit_vector_test, access)
     TypeParam c_bv(bv);
     ASSERT_EQ(bv.size(), c_bv.size());
     for (uint64_t j=0; j < bv.size(); ++j) {
-        ASSERT_EQ((bool)(bv[j]), (bool)(c_bv[j])) << "j="<<j<<" bv.size()="<<bv.size()<<" c_bv.size()="<<c_bv.size()<<" test_file="<<test_file;
+        ASSERT_EQ((bool)(bv[j]), (bool)(c_bv[j]));
     }
     TypeParam mo_bv = TypeParam(bv);
     ASSERT_EQ(bv.size(), mo_bv.size());
@@ -70,7 +74,7 @@ TYPED_TEST(bit_vector_test, get_int)
     ASSERT_EQ(bv.size(), c_bv.size());
     uint8_t len = 63;
     for (uint64_t j=0; j+len < bv.size(); j+=len) {
-        ASSERT_EQ(bv.get_int(j, len), c_bv.get_int(j, len))<<" j="<<j<<" len="<<(int)len<<" size()="<<c_bv.size()<<" test_file="<<test_file;
+        ASSERT_EQ(bv.get_int(j, len), c_bv.get_int(j, len));
     }
 }
 
@@ -84,19 +88,12 @@ TYPED_TEST(bit_vector_test, get_int_all_block_sizes)
         if (0 == dice())
             bv[i] = 1;
     }
-    TypeParam c_bv(bv);
-    ASSERT_EQ(bv.size(), c_bv.size());
-    for (size_t i=0; i < bv.size(); ++i) {
-        ASSERT_EQ((bool)(bv[i]), (bool)(c_bv[i])) << "i="<<i
-                <<" bv.size()="<<bv.size()<<" c_bv.size()="<<c_bv.size()
-                <<" test_file="<<test_file << endl;
-    }
 
+    TypeParam c_bv(bv);
     for (uint8_t len=1; len<=64; ++len) {
         for (size_t i=0; i+len <= bv.size(); ++i) {
             ASSERT_EQ(bv.get_int(i,len), c_bv.get_int(i,len))
-                    << "i="<<i<<" len="<<(int)len<<" bv.size()="<<bv.size()
-                    << " c_bv[i]=" << c_bv[i] << endl;
+                    << "i="<<i<<" len="<<(int)len<<endl;
         }
     }
 }
@@ -117,26 +114,82 @@ TYPED_TEST(bit_vector_test, swap)
     }
 }
 
-/*
-TEST(SD_VECTOR, IteratorConstructor)
+TYPED_TEST_CASE(bit_vector_test_bv_only, Implementations_BV_Only);
+
+#define LFSR_START    0x00000001  // linear-feedback shift register with
+#define LFSR_FEEDBACK 0x0110F65C  // .. period 33554431 = 31*601*1801
+#define LFSR_NEXT(x)  (((x) >> 1) ^ (((x)&1)*LFSR_FEEDBACK))
+// nota bene: LFSR output has ~50% 1s, will bias compression types like RRR
+
+
+TYPED_TEST(bit_vector_test_bv_only, and_with)
 {
-    std::vector<uint64_t> pos;
-    bit_vector bv(100000);
-    std::mt19937_64 rng;
-    std::uniform_int_distribution<uint64_t> distribution(0, 9);
-    auto dice = bind(distribution, rng);
-    for (size_t i=0; i < bv.size(); ++i) {
-        if (0 == dice()) {
-            pos.emplace_back(i);
-            bv[i] = 1;
-        }
+    bit_vector bv;
+    ASSERT_TRUE(load_from_file(bv, test_file));
+    TypeParam bv1(bv);
+
+    TypeParam bv2(bv1.size(), 0);
+    uint32_t lfsr = LFSR_START;
+    for (size_t i=0; i < bv1.size(); ++i) {
+        lfsr = LFSR_NEXT(lfsr);
+        bv2[i] = lfsr&1;
     }
-    sd_vector<> sdv(pos.begin(),pos.end());
-    for (size_t i=0; i < bv.size(); ++i) {
-        ASSERT_EQ((bool)sdv[i],(bool)bv[i]);
+
+    bv2 &= bv1;
+
+    lfsr = LFSR_START;
+    for (size_t i=0; i < bv1.size(); ++i) {
+        lfsr = LFSR_NEXT(lfsr);
+        ASSERT_EQ(bv2[i], bv1[i] & (lfsr&1))
+                << "i="<<i<<endl;
     }
 }
-*/
+
+TYPED_TEST(bit_vector_test_bv_only, or_with)
+{
+    bit_vector bv;
+    ASSERT_TRUE(load_from_file(bv, test_file));
+    TypeParam bv1(bv);
+
+    TypeParam bv2(bv1.size(), 0);
+    uint32_t lfsr = LFSR_START;
+    for (size_t i=0; i < bv1.size(); ++i) {
+        lfsr = LFSR_NEXT(lfsr);
+        bv2[i] = lfsr&1;
+    }
+
+    bv2 |= bv1;
+
+    lfsr = LFSR_START;
+    for (size_t i=0; i < bv1.size(); ++i) {
+        lfsr = LFSR_NEXT(lfsr);
+        ASSERT_EQ(bv2[i], bv1[i] | (lfsr&1))
+                << "i="<<i<<endl;
+    }
+}
+
+TYPED_TEST(bit_vector_test_bv_only, xor_with)
+{
+    bit_vector bv;
+    ASSERT_TRUE(load_from_file(bv, test_file));
+    TypeParam bv1(bv);
+
+    TypeParam bv2(bv1.size(), 0);
+    uint32_t lfsr = LFSR_START;
+    for (size_t i=0; i < bv1.size(); ++i) {
+        lfsr = LFSR_NEXT(lfsr);
+        bv2[i] = lfsr&1;
+    }
+
+    bv2 ^= bv1;
+
+    lfsr = LFSR_START;
+    for (size_t i=0; i < bv1.size(); ++i) {
+        lfsr = LFSR_NEXT(lfsr);
+        ASSERT_EQ(bv2[i], bv1[i] ^ (lfsr&1))
+                << "i="<<i<<endl;
+    }
+}
 
 }// end namespace
 

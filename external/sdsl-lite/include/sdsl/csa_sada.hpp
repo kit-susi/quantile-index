@@ -22,7 +22,6 @@
 #define INCLUDED_SDSL_CSA_SADA
 
 #include "enc_vector.hpp"
-#include "enc_vector2.hpp"
 #include "int_vector.hpp"
 #include "iterators.hpp"
 #include "suffix_array_helper.hpp"
@@ -141,7 +140,6 @@ class csa_sada
         const typename alphabet_type::comp2char_type& comp2char  = m_alphabet.comp2char;
         const typename alphabet_type::C_type&         C          = m_alphabet.C;
         const typename alphabet_type::sigma_type&     sigma      = m_alphabet.sigma;
-        const alphabet_type&                          alphabet   = m_alphabet;
         const psi_type&                               psi        = m_psi;
         const lf_type                                 lf         = lf_type(*this);
         const bwt_type                                bwt        = bwt_type(*this);
@@ -287,207 +285,86 @@ class csa_sada
             return t_dens;
         }
 
-        // Calculates how many symbols cc are in the prefix [0..i-1] of the BWT of the original text.
-        /*
-         *  \param i  The exclusive index of the prefix range [0..i-1], so \f$i\in [0..size()]\f$.
-         *  \param cc The compactified symbol to count in the prefix.
-         *  \returns The number of occurrences of the compactified symbol cc in the prefix [0..i-1].
-         *  \par Time complexity
-         *        \f$ \Order{\log n t_{\Psi}} \f$
-         */
-        template<typename t_char>
-        size_type rank_comp_bwt(size_type i, const t_char cc)const
-        {
-//            std::cout<<"rank_comp_bwt("<<i<<" (cc="<<cc<<")"<<std::endl;
-            if (i == 0)
-                return 0;
-            assert(i <= size());
-            const auto cc_begin = C[cc];   // begin of interval of context cc (inclusive)
-            const auto cc_end   = C[cc+1]; // end of interval of context cc (exclusive)
-            const size_type sd  = m_psi.get_sample_dens();
-            size_type s_begin   = (cc_begin+sd-1)/sd; // first sample at or after cc_begin
-            size_type s_end     = (cc_end+sd-1)/sd;   // first sample at or after cc_end
-//            std::cout<<"cc_begin = "<<cc_begin<<" cc_end = "<<cc_end<<" cc_size="<<cc_end-cc_begin<<std::endl;
-//            std::cout<<"s_begin = "<<s_begin<<" s_end = "<<s_end<<std::endl;
-//            if(s_end - s_begin < 10){
-//                std::cout<<"samples in C range: ";
-//                for(size_t k=s_begin; k<s_end; ++k){
-//                    std::cout<<m_psi.sample(k)<<" (@ "<<s_begin*sd<<") ";
-//                }
-//                std::cout<<std::endl;
-//            }
-
-            if (s_begin == s_end) {
-                // Case (1): No sample inside [cc_begin, cc_end)
-                //           => search in previous block (s_begin-1)
-//                std::cout<<"case (1)"<<std::endl;
-            } else if (m_psi.sample(s_begin) >= i) {  // now s_begin < s_end
-                // Case (2): Some samples inside [cc_begin, cc_end)
-                //           and first sample already larger or equal to i
-                //           => search in previous block (s_begin-1)
-//                std::cout<<"case (2): "<<m_psi.sample(s_begin)<<" >= " << i << std::endl;
-            } else { // still s_begin < s_end
-                // Case (3): Some samples inside [cc_begin, cc_end)
-                //           and first sample smaller than i
-                //           => binary search for first sample >= i
-                s_begin = upper_bound(s_begin, s_end, i-1);
-                //           => search in previous block (s_begin-1)
-//                std::cout<<"case (3): s_begin = " << s_begin << " (s_end=" << s_end <<" )"<< std::endl;
-//                std::cout<<">>>>> m_psi.sample(s_begin-1)="<<m_psi.sample(s_begin-1)<<std::endl;
-            }
-            s_begin -= 1;
-            uint64_t smpl = m_psi.sample(s_begin);
-
-            size_t abs_decode_begin = s_begin*sd;
-            size_t skip = 0;
-            if (abs_decode_begin < cc_begin) {
-                skip = cc_begin - abs_decode_begin;
-            }
-            size_t res = abs_decode_begin + skip - cc_begin;
-
-            if ((s_begin+1)*sd < m_psi.size() and skip == 0 and smpl+sd == m_psi.sample(s_begin+1)) {
-//std::cout<<"!!!Special case"<<std::endl;
-//std::cout<<"s_begin="<<s_begin<<std::endl;
-//std::cout<<"abs_decode_begin="<<abs_decode_begin<<" cc_begin="<<cc_begin<<std::endl;
-//std::cout<<"RES="<<res + (i - smpl)<<" res="<<res<<" i="<<i<<" smpl="<<smpl<<std::endl;
-                return res + (i - smpl);
-            }
-
-            uint64_t* p = m_psi_buf.data();
-            // extract the psi values between two samples
-            m_psi.get_inter_sampled_values(s_begin, p);
-            p = m_psi_buf.data();
-
-            for (auto it = p + skip; (res < cc_end - cc_begin) and it < m_psi_buf.data()+sd; ++it) {
-                if ((*it)+smpl >= i)
-                    break;
-                ++res;
-            }
-            return res;
-        }
-
-        template<typename t_char>
-        std::tuple<size_type,size_type> double_rank_comp_bwt(size_type i, size_type j, const t_char cc)const
-        {
-//            std::cout<<"double_rank_comp_bwt("<<i<<","<<j<<" (cc="<<cc<<")"<<std::endl;
-//            return std::make_tuple(rank_comp_bwt(i,cc), rank_comp_bwt(j,cc));
-            if (i == 0)
-                return std::make_tuple(0, rank_comp_bwt(j,cc));
-            assert(i <= size());
-            const auto cc_begin = C[cc];   // begin of interval of context cc (inclusive)
-            const auto cc_end   = C[cc+1]; // end of interval of context cc (exclusive)
-            const size_type sd  = m_psi.get_sample_dens();
-            size_type s_begin   = (cc_begin+sd)/sd; // first sample after cc_begin
-            size_type s_end     = (cc_end+sd-1)/sd;   // first sample at or after cc_end
-            bool answer_j       = false;
-
-            if (s_begin == s_end) {
-                // Case (1): No sample inside [cc_begin, cc_end)
-                //           => search in previous block (s_begin-1)
-                answer_j = true;
-            } else if (m_psi.sample(s_begin) >= i) {  // now s_begin < s_end
-                // Case (2): Some samples inside [cc_begin, cc_end)
-                //           and first sample already larger or equal to i
-                //           => search in previous block (s_begin-1)
-                answer_j = (m_psi.sample(s_begin) >= j);
-            } else { // still s_begin < s_end
-                // Case (3): Some samples inside [cc_begin, cc_end)
-                //           and first sample smaller than i
-                //           => binary search for first sample >= i
-                s_begin = upper_bound(s_begin, s_end, i-1);
-                //           => search in previous block (s_begin-1)
-                answer_j = (s_begin == s_end) or (m_psi.sample(s_begin) >=j);
-            }
-            s_begin -= 1;
-            uint64_t smpl = m_psi.sample(s_begin);
-
-            size_t abs_decode_begin = s_begin*sd;
-            size_t skip = 0;
-            if (abs_decode_begin < cc_begin) {
-                skip = cc_begin - abs_decode_begin;
-            }
-            size_t res = abs_decode_begin + skip - cc_begin;
-
-            bool uniform_block = (s_begin+1)*sd < m_psi.size() and skip == 0 and smpl+sd == m_psi.sample(s_begin+1);
-            if (uniform_block) {
-                if (answer_j) {
-                    return std::make_tuple(res + (i - smpl), res + (j - smpl));
-                } else {
-                    return std::make_tuple(res + (i - smpl), rank_comp_bwt(j, cc));
-                }
-            }
-
-            uint64_t* p = m_psi_buf.data();
-            // extract the psi values between two samples
-            m_psi.get_inter_sampled_values(s_begin, p);
-            p = m_psi_buf.data();
-
-            auto it = p + skip;
-            for (; (res < cc_end - cc_begin) and it < m_psi_buf.data()+sd; ++it) {
-                if ((*it)+smpl >= i) {
-                    break;
-                }
-                ++res;
-            }
-            if (answer_j) {
-                size_t res2 = res;
-                for (; (res2 < cc_end - cc_begin) and it < m_psi_buf.data()+sd; ++it) {
-                    if ((*it)+smpl >= j) {
-                        break;
-                    }
-                    ++res2;
-                }
-                return std::make_tuple(res, res2);
-            }
-            return std::make_tuple(res, rank_comp_bwt(j, cc));
-        }
-
     private:
-
-        template<typename V>
-        size_t upper_bound(size_t first, size_t last, V value) const
-        {
-            size_t mid;
-            size_t count, step;
-            count = last-first;
-
-            while (count > 0) {
-                mid = first;
-                step = count / 2;
-                mid += step;
-                if (!(value < m_psi.sample(mid))) {
-                    first = ++mid;
-                    count -= step + 1;
-                } else count = step;
-            }
-            return first;
-        }
 
         // Calculates how many symbols c are in the prefix [0..i-1] of the BWT of the original text.
         /*
          *  \param i The exclusive index of the prefix range [0..i-1], so \f$i\in [0..size()]\f$.
-         *  \param c The symbol to count in the prefix.
+         *  \param c The symbol to count the occurrences in the prefix.
          *    \returns The number of occurrences of symbol c in the prefix [0..i-1] of the BWT.
          *  \par Time complexity
          *        \f$ \Order{\log n t_{\Psi}} \f$
          */
-        // replace const char_type c by const std::array<char_type, alphabet_type::C_depth>& c
-        template<typename t_char>
-        size_type rank_bwt(size_type i, const t_char c)const
+        size_type rank_bwt(size_type i, const char_type c)const
         {
-            auto cc = char2comp[c];
-            if (cc==0 and c!=0) // character is not in the text => return 0
+            comp_char_type cc = char2comp[c];
+            if (cc==0 and c!=0)  // character is not in the text => return 0
                 return 0;
             if (i == 0)
                 return 0;
-            return rank_comp_bwt(i, cc);
-        }
+            assert(i <= size());
 
-        template<typename t_char>
-        std::array<size_type,2>
-        rank_bwt(std::array<size_type,2> ij, const t_char c)const
-        {
-            return {rank_bwt(ij[0], c), rank_bwt(ij[1],c)};
+            size_type lower_b, upper_b; // lower_b inclusive, upper_b exclusive
+
+            const size_type sd = m_psi.get_sample_dens();
+            size_type lower_sb = (C[cc]+sd-1)/sd; // lower_sb inclusive
+            size_type upper_sb = (C[cc+1]+sd-1)/sd; // upper_sb exclusive
+            while (lower_sb+1 < upper_sb) {
+                size_type mid = (lower_sb+upper_sb)/2;
+                if (m_psi.sample(mid) >= i)
+                    upper_sb = mid;
+                else
+                    lower_sb = mid;
+            }
+
+            if (lower_sb == upper_sb) { // the interval was smaller than sd
+                lower_b = C[cc]; upper_b = C[cc+1];
+            } else if (lower_sb > (C[cc]+sd-1)/sd) { // main case
+// TODO: don't use get_inter_sampled_values if t_dens is really
+//       large
+                lower_b = lower_sb*sd;
+                if (0 == m_psi_buf.size()) {
+                    upper_b = std::min(upper_sb*sd, C[cc+1]);
+                    goto finish;
+                }
+                uint64_t* p = m_psi_buf.data();
+                // extract the psi values between two samples
+                m_psi.get_inter_sampled_values(lower_sb, p);
+                p = m_psi_buf.data();
+                uint64_t smpl = m_psi.sample(lower_sb);
+                // handle border cases
+                if (lower_b + m_psi.get_sample_dens() >= C[cc+1])
+                    m_psi_buf[ C[cc+1]-lower_b ] = size()-smpl;
+                else
+                    m_psi_buf[ m_psi.get_sample_dens() ] = size()-smpl;
+                // search the result linear
+                while ((*p++)+smpl < i);
+
+                return p-1-m_psi_buf.data() + lower_b - C[cc];
+            } else { // lower_b == (m_C[cc]+sd-1)/sd and lower_sb < upper_sb
+                if (m_psi.sample(lower_sb) >= i) {
+                    lower_b = C[cc];
+                    upper_b = lower_sb * sd + 1;
+                } else {
+                    lower_b = lower_sb * sd;
+                    upper_b = std::min(upper_sb*sd, C[cc+1]);
+                }
+            }
+finish:
+            // binary search the interval [C[cc]..C[cc+1]-1] for the result
+//            size_type lower_b = m_C[cc], upper_b = m_C[cc+1]; // lower_b inclusive, upper_b exclusive
+            while (lower_b+1 < upper_b) {
+                size_type mid = (lower_b+upper_b)/2;
+                if (m_psi[mid] >= i)
+                    upper_b = mid;
+                else
+                    lower_b = mid;
+            }
+            if (lower_b > C[cc])
+                return lower_b - C[cc] + 1;
+            else { // lower_b == m_C[cc]
+                return m_psi[lower_b] < i;// 1 if m_psi[lower_b]<i, 0 otherwise
+            }
         }
 
         // Calculates the position of the i-th c in the BWT of the original text.
@@ -525,9 +402,7 @@ csa_sada<t_enc_vec, t_dens, t_inv_dens, t_sa_sample_strat, t_isa, t_alphabet_str
     size_type n = bwt_buf.size();
     {
         auto event = memory_monitor::event("construct csa-alpbabet");
-//        alphabet_type tmp_alphabet(bwt_buf, n); // TODO: maybe it is possible to use _buf_buf again for multibyte!!
-        int_vector_buffer<alphabet_type::int_width> text_buf(cache_file_name(key_trait<alphabet_type::int_width>::KEY_TEXT,config));
-        alphabet_type tmp_alphabet(text_buf, n);
+        alphabet_type tmp_alphabet(bwt_buf, n);
         m_alphabet.swap(tmp_alphabet);
     }
 
@@ -553,37 +428,6 @@ csa_sada<t_enc_vec, t_dens, t_inv_dens, t_sa_sample_strat, t_isa, t_alphabet_str
         int_vector_buffer<> psi_buf(cache_file_name(conf::KEY_PSI, config));
         t_enc_vec tmp_psi(psi_buf);
         m_psi.swap(tmp_psi);
-        /*
-                enc_vector<coder::elias_delta, enc_vector_type::sample_dens> m_psi_check(psi_buf);
-                if ( m_psi_check.size() != m_psi.size() ){
-                    std::cout<<"m_psi.size()="<<m_psi.size()<<"!="<<m_psi_check.size()<<" m_psi_check.size()"<<std::endl;
-                } else {
-
-                    std::vector<uint64_t> buf1 = std::vector<uint64_t>(enc_vector_type::sample_dens+1);
-                    std::vector<uint64_t> buf2 = std::vector<uint64_t>(enc_vector_type::sample_dens+1);
-
-                    std::cout<<"m_psi.size()="<<m_psi.size()<<std::endl;
-                    for(size_t i=0; i<m_psi.size()/enc_vector_type::sample_dens; ++i){
-                        if ( m_psi.sample(i) != m_psi_check.sample(i) ) {
-                            std::cout<<"m_psi.sample(i) != m_psi_check.sample(i) for i="<<i<<" "<<m_psi.sample(i)<<"!="<<m_psi_check.sample(i)<<std::endl;
-                        }
-                        m_psi.get_inter_sampled_values(i, buf1.data());
-                        m_psi_check.get_inter_sampled_values(i, buf2.data());
-                        bool error = false;
-                        for(size_t j=0; j<enc_vector_type::sample_dens and i*enc_vector_type::sample_dens+j<m_psi.size(); ++j) {
-                            if ( buf1[j] != buf2[j] ) {
-                                std::cout<<"i="<<i<<" j="<<j<<" buf1[j]="<<buf1[j]<<" buf2[j]="<<buf2[j]<<std::endl;
-                                error = true;
-                            }
-                        }
-                        if (error) {
-                            std::cout<<" m_psi.sample(i)="<<m_psi.sample(i)<<std::endl;
-                            std::cout<<" m_psi.sample(i+1)="<<m_psi.sample(i+1)<<" m_psi_check.sample(i+1)="<<m_psi_check.sample(i+1)<<std::endl;
-                            throw std::logic_error("error");
-                        }
-                    }
-                }
-        */
     }
     {
         auto event = memory_monitor::event("sample SA");

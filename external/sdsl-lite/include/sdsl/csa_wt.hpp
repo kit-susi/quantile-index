@@ -269,16 +269,9 @@ class csa_wt
          *  \par Time complexity
          *        \f$ \Order{\log |\Sigma|} \f$
          */
-        size_type
-        rank_bwt(size_type i, const char_type c)const
+        size_type rank_bwt(size_type i, const char_type c)const
         {
             return m_wavelet_tree.rank(i, c);
-        }
-
-        std::array<size_type,2>
-        rank_bwt(std::array<size_type,2> ij, const char_type c)const
-        {
-            return {rank_bwt(ij[0], c), rank_bwt(ij[1],c)};
         }
 
         // Calculates the position of the i-th c in the BWT of the original text.

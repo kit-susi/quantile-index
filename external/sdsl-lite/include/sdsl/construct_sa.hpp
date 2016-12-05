@@ -24,7 +24,6 @@
 
 #include "config.hpp"
 #include "int_vector.hpp"
-#include "bits.hpp"
 
 #include "divsufsort.h"
 #include "divsufsort64.h"

@@ -177,36 +177,9 @@ struct node_type {
         }
         return imag(max_p) > imag(v.max_p);
     }
-
-    template <typename T>
-    uint64_t south(const T& treap) {
-        if (treap.is_leaf(*this))
-            return imag(max_p);
-        return imag(p);
-    }
-
-    template <typename T>
-    uint64_t north(const T& treap) {
-        if (treap.is_leaf(*this))
-            return imag(max_p);
-        return imag(p) + (uint64_t{1} << t) - 1;
-    }
-
-    template <typename T>
-    uint64_t west(const T& treap) {
-        if (treap.is_leaf(*this))
-            return real(max_p);
-        return real(p);
-    }
-
-    template <typename T>
-    uint64_t east(const T& treap) {
-        if (treap.is_leaf(*this))
-            return real(max_p);
-        return real(p) + (uint64_t{1} << t) - 1;
-    }
 };
 
-} // end namespace k2_treap_ns
+} // end namepsace k2_treap_ns
+
 } // end nomespace sdsl
 #endif

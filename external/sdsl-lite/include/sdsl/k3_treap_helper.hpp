@@ -14,12 +14,12 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see http://www.gnu.org/licenses/ .
 */
-/*! \file k2_treap_helper.hpp
-    \brief k2_treap_helper.hpp contains helper functions and definitions for a k^2-treap implementation.
+/*! \file k3_treap_helper.hpp
+    \brief k3_treap_helper.hpp contains helper functions and definitions for a k^2-treap implementation.
     \author Simon Gog
 */
-#ifndef INCLUDED_SDSL_K2_TREAP_HELPER
-#define INCLUDED_SDSL_K2_TREAP_HELPER
+#ifndef INCLUDED_SDSL_K3_TREAP_HELPER
+#define INCLUDED_SDSL_K3_TREAP_HELPER
 
 #include "sdsl/vectors.hpp"
 #include "sdsl/bits.hpp"
@@ -35,7 +35,7 @@
 namespace sdsl
 {
 
-namespace k2_treap_ns
+namespace k3_treap_ns
 {
 
 // Precomputed value for fast k^2 treap operations
@@ -146,9 +146,9 @@ typename precomp<t_k>::impl precomp<t_k>::data;
 
 
 
-typedef std::complex<uint64_t> t_p;
-typedef t_p                    point_type;
-typedef t_p                    range_type;
+typedef std::array<uint64_t, 3> t_p;
+typedef t_p                     point_type;
+typedef t_p                     range_type;
 
 struct node_type {
     uint8_t  t;   // level; size of node 1<<t
@@ -172,41 +172,11 @@ struct node_type {
         if (max_v != v.max_v) {
             return max_v < v.max_v;
         }
-        if (real(max_p) != real(v.max_p)) {
-            return real(max_p) > real(v.max_p);
-        }
-        return imag(max_p) > imag(v.max_p);
-    }
-
-    template <typename T>
-    uint64_t south(const T& treap) {
-        if (treap.is_leaf(*this))
-            return imag(max_p);
-        return imag(p);
-    }
-
-    template <typename T>
-    uint64_t north(const T& treap) {
-        if (treap.is_leaf(*this))
-            return imag(max_p);
-        return imag(p) + (uint64_t{1} << t) - 1;
-    }
-
-    template <typename T>
-    uint64_t west(const T& treap) {
-        if (treap.is_leaf(*this))
-            return real(max_p);
-        return real(p);
-    }
-
-    template <typename T>
-    uint64_t east(const T& treap) {
-        if (treap.is_leaf(*this))
-            return real(max_p);
-        return real(p) + (uint64_t{1} << t) - 1;
+        return max_p > v.max_p;
     }
 };
 
-} // end namespace k2_treap_ns
+} // end namepsace k3_treap_ns
+
 } // end nomespace sdsl
 #endif

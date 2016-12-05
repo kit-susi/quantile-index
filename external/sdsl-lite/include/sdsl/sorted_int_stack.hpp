@@ -15,9 +15,8 @@
     along with this program.  If not, see http://www.gnu.org/licenses/ .
 */
 /*! \file sorted_int_stack.hpp
-    \brief sorted_int_stack.hpp contains a data structure for a stack which can
-    contain numbers in strictly increasing order.
-    \author Simon Gog
+    \brief sorted_int_stack.hpp contains a data structure for a stack which can contain numbers in the range from \f$0\f$ to \f$n-1\f$ and the numbers on the stack are sorted in increasing order.
+	\author Simon Gog
 */
 #ifndef INCLUDED_SDSL_SORTED_INT_STACK
 #define INCLUDED_SDSL_SORTED_INT_STACK
@@ -29,9 +28,9 @@
 namespace sdsl
 {
 
-//! A stack class which can contain integers in strictly increasing order.
+//! A stack class which can contain integers from \f$0\f$ to \f$n-1\f$ in sorted order.
 /*! \par Space complexity
- *  \f$n+o(n)\f$ bits + 64 bits for every stored number > n-1.
+ *  \f$n\f$ bits
  */
 class sorted_int_stack
 {

@@ -92,6 +92,7 @@ class top_k_iterator
         point_type m_p1;
         point_type m_p2;
         bool m_valid = false;
+        uint64_t m_lower_bound = 0;
 
     public:
         top_k_iterator() = default;
@@ -99,8 +100,10 @@ class top_k_iterator
         top_k_iterator(top_k_iterator&&) = default;
         top_k_iterator& operator=(const top_k_iterator&) = default;
         top_k_iterator& operator=(top_k_iterator&&) = default;
-        top_k_iterator(const t_k2_treap& treap, point_type p1, point_type p2) :
-            m_treap(&treap), m_p1(p1), m_p2(p2), m_valid(treap.size()>0)
+        top_k_iterator(const t_k2_treap& treap, point_type p1, point_type p2,
+                       uint64_t lower_bound = 0) :
+            m_treap(&treap), m_p1(p1), m_p2(p2), m_valid(treap.size()>0),
+            m_lower_bound(lower_bound)
         {
             if (m_treap->size() > 0) {
                 m_pq.emplace(m_treap->root(),false);
@@ -116,6 +119,8 @@ class top_k_iterator
                 auto v = std::get<0>(m_pq.top());
                 auto is_contained = std::get<1>(m_pq.top());
                 m_pq.pop();
+                if (v.max_v < m_lower_bound)
+                    continue;
                 if (is_contained) {
                     auto nodes = m_treap->children(v);
                     for (auto node : nodes)
@@ -262,8 +267,6 @@ class range_iterator
         }
 };
 
-} // end namespace k2_treap_ns
-
 //! Get iterator for all heaviest points in rectangle (p1,p2) in decreasing order
 /*! \param treap k2-treap
  *  \param p1    Lower left corner of the rectangle
@@ -275,11 +278,11 @@ template<typename t_k2_treap>
 k2_treap_ns::top_k_iterator<t_k2_treap>
 top_k(const t_k2_treap& t,
       k2_treap_ns::point_type p1,
-      k2_treap_ns::point_type p2)
+      k2_treap_ns::point_type p2,
+      uint64_t lower_bound = 0)
 {
-    return k2_treap_ns::top_k_iterator<t_k2_treap>(t, p1, p2);
+    return k2_treap_ns::top_k_iterator<t_k2_treap>(t, p1, p2, lower_bound);
 }
-
 
 //! Get iterator for all points in rectangle (p1,p2) with weights in range
 /*! \param treap k2-treap
@@ -364,6 +367,7 @@ __count(const t_k2_treap& treap,
     return res;
 }
 
+} // namespace k2_treap_ns
 
 // forward declaration
 template<uint8_t  t_k,
@@ -395,7 +399,8 @@ template<uint8_t  t_k,
          typename t_max_vec
          >
 void
-construct_im(k2_treap<t_k, t_bv, t_rank, t_max_vec>& idx, std::vector<std::array<uint64_t, 3>> data)
+construct_im(k2_treap<t_k, t_bv, t_rank, t_max_vec>& idx,
+        std::vector<std::array<uint64_t, 3>> data)
 {
     std::string tmp_prefix = ram_file_name("k2_treap_");
     std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> d;
@@ -406,7 +411,5 @@ construct_im(k2_treap<t_k, t_bv, t_rank, t_max_vec>& idx, std::vector<std::array
     tmp.swap(idx);
 }
 
-
-
-}
+} // namespace sdsl
 #endif

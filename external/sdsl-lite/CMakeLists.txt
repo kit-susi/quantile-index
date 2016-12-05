@@ -33,6 +33,9 @@ endif()
 if(CMAKE_CXX_COMPILER MATCHES ".*clang.*" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
       set(CMAKE_COMPILER_IS_CLANGXX 1)
 endif()
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    set(CMAKE_COMPILER_IS_INTEL 1)
+endif()
 if( (CMAKE_COMPILER_IS_GNUCXX AND ${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS 4.7) OR
     (CMAKE_COMPILER_IS_CLANGXX AND ${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS 3.2))
   message(FATAL_ERROR "Your C++ compiler does not support C++11. Please install g++ 4.7 (or greater) or clang 3.2 (or greater)")
@@ -46,22 +49,27 @@ if( CMAKE_COMPILER_IS_GNUCXX )
     if ( CODE_COVERAGE )
         append_cxx_compiler_flags("-g -fprofile-arcs -ftest-coverage -lgcov" "GCC" CMAKE_CXX_FLAGS)
     endif()
-      
+
 else()
     if( CMAKE_COMPILER_IS_CLANGXX )
 		append_cxx_compiler_flags("-std=c++14" "CLANG" CMAKE_CXX_FLAGS)
 		append_cxx_compiler_flags("-stdlib=libc++" "CLANG" CMAKE_CXX_FLAGS)
 		append_cxx_compiler_flags("-O3 -ffast-math -funroll-loops -D__extern_always_inline=\"extern __always_inline\" " "CLANG" CMAKE_CXX_OPT_FLAGS)
 	else()
-		append_cxx_compiler_flags("/EHsc" "MSVC" CMAKE_CXX_FLAGS)
-		append_cxx_compiler_flags("/Od" "MSVC" CMAKE_CXX_FLAGS_DEBUG)
-		append_cxx_compiler_flags("/Ox" "MSVC" CMAKE_CXX_FLAGS_RELEASE)
-        set(vars CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-        foreach(var ${vars})
-            string(REPLACE "/MD" "-MT" ${var} "${${var}}")
-        endforeach(var)
-        
-		add_definitions("/DMSVC_COMPILER")
+        if( CMAKE_COMPILER_IS_INTEL )
+            append_cxx_compiler_flags("-std=c++11 -Wall -Wextra -DNDEBUG" "INTEL" CMAKE_CXX_FLAGS)
+            append_cxx_compiler_flags("-O3 -ffast-math -funroll-loops -no-inline-min-size -no-inline-max-size" "INTEL" CMAKE_CXX_OPT_FLAGS)
+        else()
+            append_cxx_compiler_flags("/EHsc" "MSVC" CMAKE_CXX_FLAGS)
+            append_cxx_compiler_flags("/Od" "MSVC" CMAKE_CXX_FLAGS_DEBUG)
+            append_cxx_compiler_flags("/Ox" "MSVC" CMAKE_CXX_FLAGS_RELEASE)
+            set(vars CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+            foreach(var ${vars})
+                string(REPLACE "/MD" "-MT" ${var} "${${var}}")
+            endforeach(var)
+
+            add_definitions("/DMSVC_COMPILER")
+        endif()
 	endif()
 endif()
 
@@ -83,7 +91,16 @@ if( BUILTIN_POPCNT )
     endif()
 endif()
 
-#COMMENT REPLACED BY BIICODE
+# check for demangle support to get pretty C++ class names
+include(FindCxaDemangle)
+if( HAVE_CXA_DEMANGLE )
+    message(STATUS "Compiler supports DEMANGLE.")
+    if( CMAKE_COMPILER_IS_GNUCXX )
+        append_cxx_compiler_flags("-DHAVE_CXA_DEMANGLE" "GCC" CMAKE_CXX_OPT_FLAGS)
+    else()
+        append_cxx_compiler_flags("-DHAVE_CXA_DEMANGLE" "CLANG" CMAKE_CXX_OPT_FLAGS)
+    endif()
+endif()
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Make.helper.cmake"
 		       "${CMAKE_CURRENT_SOURCE_DIR}/Make.helper" @ONLY)
@@ -93,7 +110,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lib/structure_tree.cpp.cmake"
 find_package(Git)
 if(GIT_FOUND)
     message("git found: ${GIT_EXECUTABLE}")
-else()      
+else()
     message(WARNING "git not found. Cloning of submodules will not work.")
 endif()
 
@@ -121,5 +138,10 @@ ADD_CUSTOM_TARGET(uninstall-sdsl
   "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/CMakeModules/cmake_uninstall.cmake")
 
 target_include_directories(sdsl PUBLIC include)
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/sdsl-lite.pc.cmake"
+               "${CMAKE_CURRENT_BINARY_DIR}/sdsl-lite.pc" @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sdsl-lite.pc"
+        DESTINATION "lib/pkgconfig")
 
 add_subdirectory(test)

@@ -28,17 +28,17 @@ matrix:
             - cmake
             - g++-5
 
-    - env: MYCC="clang-3.7" MYCXX="clang++-3.7" STDLIB=libc++
-      os: linux
-      addons: &clang37
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.7
-          packages:
-            - cmake
-            - clang-3.7
+#    - env: MYCC="clang-3.7" MYCXX="clang++-3.7" STDLIB=libc++
+#      os: linux
+#      addons: &clang37
+#        apt:
+#          sources:
+#            - kalakris-cmake
+#            - ubuntu-toolchain-r-test
+#            - llvm-toolchain-precise-3.7
+#          packages:
+#            - cmake
+#            - clang-3.7
 
     - env: MYCC="clang" MYCXX="clang++" STDLIB=libc++
       os: osx
@@ -57,8 +57,6 @@ install:
       CMAKE_URL="http://www.cmake.org/files/v3.3/cmake-3.3.2-Linux-x86_64.tar.gz"
       mkdir cmake && travis_retry wget --no-check-certificate --quiet -O - ${CMAKE_URL} | tar --strip-components=1 -xz -C cmake
       export PATH=${DEPS_DIR}/cmake/bin:${PATH}
-    else
-      brew install cmake
     fi
   ############################################################################
   # Install libc++ and libc++abi (on Linux only; Xcode uses libc++ by default)

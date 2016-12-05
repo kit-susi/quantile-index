@@ -70,7 +70,7 @@ private:
     border_rank_type   m_border_rank;
     border_select_type m_border_select;
     tails_type         m_tails;
-    dac_vector<>       m_weights;       // Only nonsingletons are stored in H order!
+    dac_vector_dp<>    m_weights;       // Only nonsingletons are stored in H order!
     rmq_type           m_weights_rmq;   // Tails order including singletons.
     doc_offset_type    m_doc_offset;
     doc_offset_select_type m_doc_offset_select;
@@ -510,7 +510,7 @@ void construct(idx_top_down<t_csa,
             cout << "rmq_size: " << rmq.size() << endl;
             store_to_cache(rmq, key_weights_rmq, cc, true);
         }
-        sdsl::dac_vector<> dac_weights(old_weights);
+        sdsl::dac_vector_dp<> dac_weights(old_weights);
         store_to_cache(dac_weights, key_weights, cc, true);
     }
     cout << "...DOC_OFFSET" << endl;

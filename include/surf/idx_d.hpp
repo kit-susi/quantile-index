@@ -1,6 +1,5 @@
-#ifndef SURF_IDX_D_HPP
-#define SURF_IDX_D_HPP
-
+#pragma once
+#include "surf/config.hpp"
 #include "sdsl/suffix_trees.hpp"
 #include "surf/df_sada.hpp"
 #include "surf/rank_functions.hpp"
@@ -242,10 +241,10 @@ public:
     }
 
     void load(sdsl::cache_config& cc){
-        load_from_cache(m_csa, surf::KEY_CSA, cc, true);
-        load_from_cache(m_wtd, surf::KEY_WTD, cc, true);
-        load_from_cache(m_df, surf::KEY_SADADF, cc, true);
-        load_from_cache(m_docperm, surf::KEY_DOCPERM, cc);
+        load_from_cache(m_csa, KEY_CSA, cc, true);
+        load_from_cache(m_wtd, KEY_WTD, cc, true);
+        load_from_cache(m_df, KEY_SADADF, cc, true);
+        load_from_cache(m_docperm, KEY_DOCPERM, cc);
         //std::cout << "loading ranker" << std::endl;
         m_ranker = ranker_type(cc);
         //std::cout << "done loading ranker" << std::endl;
@@ -288,33 +287,31 @@ void construct(idx_d<t_csa,t_wtd,t_df,t_ranker>& idx,
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
     cout<<"...CSA"<<endl;
-    if ( !cache_file_exists<t_csa>(surf::KEY_CSA, cc) )
+    if ( !cache_file_exists<t_csa>(KEY_CSA, cc) )
     {
         t_csa csa;
         construct(csa, "", cc, 0);
-        store_to_cache(csa, surf::KEY_CSA, cc, true);
+        store_to_cache(csa, KEY_CSA, cc, true);
     }
 
     construct_doc_perm<t_csa::alphabet_type::int_width>(cc);
     construct_darray<t_csa::alphabet_type::int_width>(cc);
 
     cout<<"...WTD"<<endl;
-    if (!cache_file_exists<t_wtd>(surf::KEY_WTD, cc) ){
+    if (!cache_file_exists<t_wtd>(KEY_WTD, cc) ){
         t_wtd wtd;
-        construct(wtd, cache_file_name(surf::KEY_DARRAY, cc), cc);
+        construct(wtd, cache_file_name(KEY_DARRAY, cc), cc);
         cout << "wtd.size() = " << wtd.size() << endl;
         cout << "wtd.sigma = " << wtd.sigma << endl;
-        store_to_cache(wtd, surf::KEY_WTD, cc, true);
+        store_to_cache(wtd, KEY_WTD, cc, true);
     }
     cout<<"...DF"<<endl;
-    if (!cache_file_exists<t_df>(surf::KEY_SADADF, cc))
+    if (!cache_file_exists<t_df>(KEY_SADADF, cc))
     {
         t_df df;
         construct(df, "", cc, 0);
-        store_to_cache(df, surf::KEY_SADADF, cc, true);
+        store_to_cache(df, KEY_SADADF, cc, true);
     }
 }
 
 } // end namespace surf
-
-#endif

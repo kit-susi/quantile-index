@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
         cout << "# collection_file = " << args.collection_dir << endl;
         cout << "# index_name = " << IDXNAME << endl;
     }
-    auto cc = surf::parse_collection<idx_type::alphabet_category>(args.collection_dir);
+    auto cc = parse_collection<idx_type::alphabet_category>(args.collection_dir);
     idx.load(cc);
     idx_type::topk_interface* topk = &idx;
 

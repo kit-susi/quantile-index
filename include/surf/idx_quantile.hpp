@@ -251,23 +251,23 @@ public:
     }
 
     void load(sdsl::cache_config& cc) {
-        load_from_cache(m_csa, surf::KEY_CSA, cc, true);
-        load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true);
-        load_from_cache(m_border_rank, surf::KEY_DOCBORDER_RANK, cc, true);
+        load_from_cache(m_csa, KEY_CSA, cc, true);
+        load_from_cache(m_border, KEY_DOCBORDER, cc, true);
+        load_from_cache(m_border_rank, KEY_DOCBORDER_RANK, cc, true);
         m_border_rank.set_vector(&m_border);
-        load_from_cache(m_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
+        load_from_cache(m_border_select, KEY_DOCBORDER_SELECT, cc, true);
         m_border_select.set_vector(&m_border);
-        load_from_cache(m_tails, surf::KEY_TAILS + std::to_string(LEVELS), cc, true);
-        load_from_cache(m_weights, surf::KEY_WEIGHTS_G + std::to_string(LEVELS), cc, true);
-        load_from_cache(m_weights_rmq, surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS), cc, true);
-        load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET + std::to_string(LEVELS), cc, true);
-        load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_tails, KEY_TAILS + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_weights, KEY_WEIGHTS_G + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_weights_rmq, KEY_WEIGHTS_RMQ + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_doc_offset, KEY_DOC_OFFSET + std::to_string(LEVELS), cc, true);
+        load_from_cache(m_doc_offset_select, KEY_DOC_OFFSET_SELECT + std::to_string(LEVELS), cc, true);
         m_doc_offset_select.set_vector(&m_doc_offset);
 
-        load_from_cache(m_h, surf::KEY_H, cc, true);
-        load_from_cache(m_h_rank, surf::KEY_H_RANK, cc, true);
-        load_from_cache(m_h_select_1, surf::KEY_H_SELECT_1, cc, true);
-        load_from_cache(m_h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        load_from_cache(m_h, KEY_H, cc, true);
+        load_from_cache(m_h_rank, KEY_H_RANK, cc, true);
+        load_from_cache(m_h_select_1, KEY_H_SELECT_1, cc, true);
+        load_from_cache(m_h_select_0, KEY_H_SELECT_0, cc, true);
         m_h_rank.set_vector(&m_h);
         m_h_select_1.set_vector(&m_h);
         m_h_select_0.set_vector(&m_h);
@@ -332,26 +332,26 @@ void construct(idx_quantile<t_csa,
     using t_h_select_1 = t_h::select_1_type;
     using t_h_select_0 = t_h::select_0_type;
 
-    const auto key_dup = surf::KEY_DUP_G;
-    const auto key_df = surf::KEY_SADADF_G;
+    const auto key_dup = KEY_DUP_G;
+    const auto key_df = KEY_SADADF_G;
 
     cout << "...CSA" << endl; // CSA to get the lex. range
-    if (!cache_file_exists<t_csa>(surf::KEY_CSA, cc))
+    if (!cache_file_exists<t_csa>(KEY_CSA, cc))
     {
         t_csa csa;
         construct(csa, "", cc, 0);
-        store_to_cache(csa, surf::KEY_CSA, cc, true);
+        store_to_cache(csa, KEY_CSA, cc, true);
     }
     cout << "...WTD" << endl;
     // Document array and wavelet tree of it
     // Note: This also constructs doc borders.
-    if (!cache_file_exists<t_wtd>(surf::KEY_WTD, cc)) {
+    if (!cache_file_exists<t_wtd>(KEY_WTD, cc)) {
         construct_darray<t_csa::alphabet_type::int_width>(cc, false);
         t_wtd wtd;
-        construct(wtd, cache_file_name(surf::KEY_DARRAY, cc), cc);
+        construct(wtd, cache_file_name(KEY_DARRAY, cc), cc);
         cout << "wtd.size() = " << wtd.size() << endl;
         cout << "wtd.sigma = " << wtd.sigma << endl;
-        store_to_cache(wtd, surf::KEY_WTD, cc, true);
+        store_to_cache(wtd, KEY_WTD, cc, true);
     }
     cout << "...DF" << endl; // For h vector and repetition array.
     if (!cache_file_exists<t_df>(key_df, cc))
@@ -360,37 +360,37 @@ void construct(idx_quantile<t_csa,
         construct(df, "", cc, 0);
         store_to_cache(df, key_df, cc, true);
         bit_vector h;
-        load_from_cache(h, surf::KEY_H, cc);
+        load_from_cache(h, KEY_H, cc);
         t_h hrrr(h);
-        store_to_cache(hrrr, surf::KEY_H, cc, true);
+        store_to_cache(hrrr, KEY_H, cc, true);
         t_h_select_1 h_select_1(&hrrr);
         t_h_select_0 h_select_0(&hrrr);
-        store_to_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
-        store_to_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        store_to_cache(h_select_1, KEY_H_SELECT_1, cc, true);
+        store_to_cache(h_select_0, KEY_H_SELECT_0, cc, true);
         t_h_rank h_rank(&hrrr);
-        store_to_cache(h_rank, surf::KEY_H_RANK, cc, true);
+        store_to_cache(h_rank, KEY_H_RANK, cc, true);
     }
     cout << "...DOC_BORDER" << endl;
-    if (!cache_file_exists<t_border>(surf::KEY_DOCBORDER, cc) or
-            !cache_file_exists<t_border_rank>(surf::KEY_DOCBORDER_RANK, cc) or
-            !cache_file_exists<t_border_select>(surf::KEY_DOCBORDER_SELECT, cc))
+    if (!cache_file_exists<t_border>(KEY_DOCBORDER, cc) or
+            !cache_file_exists<t_border_rank>(KEY_DOCBORDER_RANK, cc) or
+            !cache_file_exists<t_border_select>(KEY_DOCBORDER_SELECT, cc))
     {
         bit_vector doc_border;
-        load_from_cache(doc_border, surf::KEY_DOCBORDER, cc);
+        load_from_cache(doc_border, KEY_DOCBORDER, cc);
         t_border sd_doc_border(doc_border);
-        store_to_cache(sd_doc_border, surf::KEY_DOCBORDER, cc, true);
+        store_to_cache(sd_doc_border, KEY_DOCBORDER, cc, true);
         t_border_rank doc_border_rank(&sd_doc_border);
-        store_to_cache(doc_border_rank, surf::KEY_DOCBORDER_RANK, cc, true);
+        store_to_cache(doc_border_rank, KEY_DOCBORDER_RANK, cc, true);
         t_border_select doc_border_select(&sd_doc_border);
-        store_to_cache(doc_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
+        store_to_cache(doc_border_select, KEY_DOCBORDER_SELECT, cc, true);
     }
 
     cout << "...tails" << endl;
-    const auto key_tails = surf::KEY_TAILS + std::to_string(LEVELS);
+    const auto key_tails = KEY_TAILS + std::to_string(LEVELS);
     if (!cache_file_exists<tails_type>(key_tails, cc))
     {
         uint64_t max_depth = 0;
-        load_from_cache(max_depth, surf::KEY_MAXCSTDEPTH, cc);
+        load_from_cache(max_depth, KEY_MAXCSTDEPTH, cc);
 
         int_vector<> dup;
         load_from_cache(dup, key_dup, cc);
@@ -400,19 +400,19 @@ void construct(idx_quantile<t_csa,
         }
 
         t_wtd wtd;
-        load_from_cache(wtd, surf::KEY_WTD, cc, true);
+        load_from_cache(wtd, KEY_WTD, cc, true);
 
         t_h hrrr;
-        load_from_cache(hrrr, surf::KEY_H, cc, true);
+        load_from_cache(hrrr, KEY_H, cc, true);
         t_h_select_1 h_select_1;
-        load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        load_from_cache(h_select_1, KEY_H_SELECT_1, cc, true);
         h_select_1.set_vector(&hrrr);
         cst_type cst;
-        load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
+        load_from_file(cst, cache_file_name<cst_type>(KEY_TMPCST, cc));
         map_node_to_dup_type<cst_type, t_h_select_1> map_node_to_dup(&h_select_1, &cst);
 
         int_vector<> old_weights;
-        load_from_file(old_weights, cache_file_name(surf::KEY_WEIGHTS_G, cc));
+        load_from_file(old_weights, cache_file_name(KEY_WEIGHTS_G, cc));
         const uint64_t bits_per_level = SINGLETONS ? hrrr.size() : old_weights.size();
         int_vector<8>  tails_plain(bits_per_level);
 
@@ -464,21 +464,91 @@ void construct(idx_quantile<t_csa,
         sdsl::construct_im(tails, tails_plain);
         store_to_cache(tails, key_tails, cc, true);
     }
+    cout << "...calc quantile stats.";
+    {
+        int_vector<> weights;
+        load_from_file(weights, cache_file_name(KEY_WEIGHTS_G, cc));
+
+        t_h hrrr;
+        load_from_cache(hrrr, KEY_H, cc, true);
+        t_h_select_1 h_select_1;
+        load_from_cache(h_select_1, KEY_H_SELECT_1, cc, true);
+        h_select_1.set_vector(&hrrr);
+        cst_type cst;
+        load_from_file(cst, cache_file_name<cst_type>(KEY_TMPCST, cc));
+        map_node_to_dup_type<cst_type, t_h_select_1> map_node_to_dup(&h_select_1, &cst);
+        const uint64_t bits_per_level = SINGLETONS ? hrrr.size() : weights.size();
+        std::cout << hrrr.size() << " " << weights.size() << std::endl;
+        std::vector<uint64_t> quantiles = {2,4,8,16,32,64,128,256};
+        std::vector<bit_vector> is_needed;
+        for (const auto a: quantiles)
+            is_needed.push_back(bit_vector(bits_per_level, 0));
+        // DFS traversal of CST
+        for (auto it = cst.begin(); it != cst.end(); ++it) {
+            auto v = *it; // get the node by dereferencing the iterator
+            if (!cst.is_leaf(v)) {
+                if (it.visit() == 1) {
+                    // node visited the first time
+                    //std::cout << h_select_1(v.i+1) << " " << h_select_1(v.j+1) << std::endl;
+                    uint64_t start = h_select_1(v.i+1); 
+                    uint64_t end = h_select_1(v.j+1)+1;
+                    uint64_t weight_idx = start - v.i;
+                    std::vector<std::tuple<uint64_t, uint64_t>> cur_weights;
+                    uint64_t interval_size = end-start;
+                    cur_weights.reserve(interval_size);
+                    uint64_t k = interval_size / quantiles[0];
+                    if (k > 0) {
+                        std::vector<uint64_t> ks(quantiles);
+                        for (size_t i = 0; i < quantiles.size(); ++i)
+                            ks[i] = interval_size / quantiles[i];
+                        for (uint64_t i = start; i < end; ++i) {
+                            if (hrrr[i] == 1) { // Singleton.
+                                cur_weights.push_back(std::make_tuple((uint64_t)0, i)); 
+                            } else { // no singleton.
+                                cur_weights.push_back(std::make_tuple(weights[weight_idx], i)); 
+                                weight_idx++;
+                            }
+                        }
+                        std::nth_element(cur_weights.begin(), cur_weights.begin()+k, cur_weights.end(),
+                                std::greater<std::tuple<uint64_t, uint64_t>>());
+                        for (size_t j = 1; j < quantiles.size() ; ++j) {
+                            std::nth_element(cur_weights.begin(), cur_weights.begin()+ks[j], cur_weights.begin()+ks[j-1],
+                                    std::greater<std::tuple<uint64_t, uint64_t>>());
+                        }
+                        for (size_t j = 0; j < quantiles.size() ; ++j) {
+                            for (size_t i = 0; i < ks[j]; ++i)
+                                is_needed[j][std::get<1>(cur_weights[i])] = 1;
+                        }
+                    }
+                }
+            }
+        }
+        cout << "1 & " << is_needed[0].size()<< " \\\\" << std::endl;
+        for (size_t j = 0; j < quantiles.size(); ++j) {
+            size_t cnt_needed = 0;
+            for (uint64_t i = 0; i < is_needed[j].size(); ++i) {
+                if (is_needed[j][i]) {
+                    cnt_needed++;
+                }
+            }
+            cout <<quantiles[j] << " & " << cnt_needed << " \\\\" << std::endl;
+        }
+    }
     cout << "...weights and rmq.";
-    const auto key_weights = surf::KEY_WEIGHTS_G + std::to_string(LEVELS);
-    const auto key_weights_rmq = surf::KEY_WEIGHTS_RMQ + std::to_string(LEVELS);
+    const auto key_weights = KEY_WEIGHTS_G + std::to_string(LEVELS);
+    const auto key_weights_rmq = KEY_WEIGHTS_RMQ + std::to_string(LEVELS);
     if (!cache_file_exists<rmq_type>(key_weights_rmq, cc)) {
         // Reorder weights.
         cout << "Construct rmq." << endl;
         int_vector<> old_weights;
         int_vector<> dup;
-        load_from_file(old_weights, cache_file_name(surf::KEY_WEIGHTS_G, cc));
-        load_from_file(dup, cache_file_name(surf::KEY_DUP_G, cc));
+        load_from_file(old_weights, cache_file_name(KEY_WEIGHTS_G, cc));
+        load_from_file(dup, cache_file_name(KEY_DUP_G, cc));
 
         int_vector<> D;
-        load_from_file(D, cache_file_name(surf::KEY_DARRAY, cc));
+        load_from_file(D, cache_file_name(KEY_DARRAY, cc));
         t_h hrrr;
-        load_from_cache(hrrr, surf::KEY_H, cc, true);
+        load_from_cache(hrrr, KEY_H, cc, true);
         t_h::rank_1_type h_rank(&hrrr);
         tails_type tails;
         load_from_file(tails, cache_file_name(key_tails, cc));
@@ -516,16 +586,16 @@ void construct(idx_quantile<t_csa,
     }
     cout << "...DOC_OFFSET" << endl;
     typedef sdsl::hyb_sd_vector<>                      doc_offset_type;
-    const auto key_doc_offset = surf::KEY_DOC_OFFSET + std::to_string(LEVELS);
-    const auto key_doc_offset_select = surf::KEY_DOC_OFFSET_SELECT + std::to_string(LEVELS);
+    const auto key_doc_offset = KEY_DOC_OFFSET + std::to_string(LEVELS);
+    const auto key_doc_offset_select = KEY_DOC_OFFSET_SELECT + std::to_string(LEVELS);
     if (!cache_file_exists<doc_offset_type>(key_doc_offset, cc)) {
         int_vector<> darray, dup;
-        load_from_cache(darray, surf::KEY_DARRAY, cc);
-        load_from_cache(dup, surf::KEY_DUP_G, cc);
+        load_from_cache(darray, KEY_DARRAY, cc);
+        load_from_cache(dup, KEY_DUP_G, cc);
         t_h hrrr;
-        load_from_cache(hrrr, surf::KEY_H, cc, true);
+        load_from_cache(hrrr, KEY_H, cc, true);
         t_h_select_1 h_select_1;
-        load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        load_from_cache(h_select_1, KEY_H_SELECT_1, cc, true);
         h_select_1.set_vector(&hrrr);
 
         // Iterate through all nodes.

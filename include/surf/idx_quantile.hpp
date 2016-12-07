@@ -40,11 +40,11 @@ template<typename t_csa,
          typename t_border_select = typename t_border::select_1_type,
          int LEVELS = 10,
          typename t_tails = sdsl::wt_huff<>>
-class idx_top_down
+class idx_quantile
     : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
 
 public:
-    static const bool SINGLETONS = false;
+    static const bool SINGLETONS = true;
     typedef t_csa                                      csa_type;
     typedef t_border                                   border_type;
     typedef t_border_rank                              border_rank_type;
@@ -83,14 +83,14 @@ private:
 public:
 
     template <typename t_token>
-    class top_down_topk_iterator : public topk_iterator<t_token> {
+    class quantile_topk_iterator : public topk_iterator<t_token> {
     private:
-        const idx_top_down* m_idx;
+        const idx_quantile* m_idx;
         uint64_t           m_sp;  // start point of lex interval
         uint64_t           m_ep;  // end point of lex interval
         bool               m_valid = false;
         bool               m_multi_occ = false; // true, if document has to occur more than once
-        struct top_down_result {
+        struct quantile_result {
             double weight;
             uint64_t document;
             uint64_t tails_id;
@@ -100,14 +100,14 @@ public:
             // Only for navigation purposes.
             uint64_t offset; // Start of level in tails id.
             uint64_t depth; // Tree depth of interval.
-            bool operator<(const top_down_result& obj) const {
+            bool operator<(const quantile_result& obj) const {
                 return weight < obj.weight;
             }
         };
-        std::priority_queue<top_down_result> m_intervals;
+        std::priority_queue<quantile_result> m_intervals;
         std::unordered_set<uint64_t> m_reported_docs;
 
-        void init_interval(top_down_result& interval) {
+        void init_interval(quantile_result& interval) {
             interval.tails_id = m_idx->m_weights_rmq(interval.start, interval.end - 1);
             assert(interval.tails_id >= interval.start && interval.tails_id < interval.end);
             uint64_t h_pos = m_idx->m_tails.select(
@@ -129,8 +129,8 @@ public:
         }
 
     public:
-        top_down_topk_iterator() = delete;
-        top_down_topk_iterator(const idx_top_down* idx,
+        quantile_topk_iterator() = delete;
+        quantile_topk_iterator(const idx_quantile* idx,
                                const typename topk_interface::token_type* begin,
                                const typename topk_interface::token_type* end,
                                bool multi_occ, bool only_match) :
@@ -148,7 +148,7 @@ public:
                     uint64_t offset = 0;
                     // <= here instead of < ??? TODO
                     for (uint64_t depth = 0; depth <= (end - begin); ++depth) {
-                        top_down_result interval;
+                        quantile_result interval;
                         interval.start = idx->m_tails.rank(std::get<0>(h_range), depth) + offset;
                         interval.end = idx->m_tails.rank(std::get<1>(h_range) + 1, depth) + offset;
                         interval.offset = offset;
@@ -180,7 +180,7 @@ public:
             auto t = m_intervals.top();
             m_reported_docs.insert(t.document);
             m_intervals.pop();
-            top_down_result interval;
+            quantile_result interval;
             // Left side.
             interval.start = t.start;
             interval.end = t.tails_id;
@@ -218,8 +218,8 @@ public:
         const token_type* begin,
         const token_type* end,
         bool multi_occ = false, bool only_match = false) override {
-        return std::make_unique<top_down_topk_iterator<token_type>>(
-                   top_down_topk_iterator<token_type>(this,
+        return std::make_unique<quantile_topk_iterator<token_type>>(
+                   quantile_topk_iterator<token_type>(this,
                            begin, end, multi_occ, only_match));
     }
 
@@ -316,7 +316,7 @@ template<typename t_csa,
          typename t_border_select,
          int LEVELS,
          typename t_tails>
-void construct(idx_top_down<t_csa,
+void construct(idx_quantile<t_csa,
                t_border, t_border_rank,
                t_border_select,
                LEVELS,

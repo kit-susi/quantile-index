@@ -205,6 +205,7 @@ public:
             state_type s = pq.top();
             pq.pop();
             if ( m_wtd.is_leaf(s.v) ){
+                // TODO(niklasb) why don't we need this?
                 //m_results.emplace_back(m_docperm.len2id[m_wtd.sym(s.v)], s.score);
                 m_results.emplace_back(m_wtd.sym(s.v), s.score);
             } else {

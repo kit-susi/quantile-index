@@ -7,3 +7,4 @@
 #include "idx_top_down.hpp"
 #include "idx_quantile.hpp"
 #include "idx_d.hpp"
+#include "idx_nn_quantile.hpp"

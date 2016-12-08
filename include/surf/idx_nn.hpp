@@ -1,5 +1,4 @@
-#ifndef SURF_IDX_NN_1P
-#define SURF_IDX_NN_HPP
+#pragma once
 
 #include <algorithm>
 #include <limits>
@@ -470,7 +469,6 @@ void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_bor
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
-            cout << "node " << v.i << "-" << v.j << " visit=" << (int)it.visit() << endl;
             if (!cst.is_leaf(v)) {
                 if (it.visit() == 1) {
                     // node visited the first time
@@ -486,7 +484,6 @@ void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_bor
                     if (!empty(r)) {
                         for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
                             depths[dup[i]].pop();
-                            cout << "  " << depths[dup[i]].top() << endl;
                             P_buf[i] = depths[dup[i]].top();
                         }
                     }
@@ -621,5 +618,3 @@ void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_bor
 }
 
 } // end namespace surf
-
-#endif

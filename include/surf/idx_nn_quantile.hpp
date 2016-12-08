@@ -7,6 +7,7 @@
 #include <set>
 #include <unordered_set>
 
+#include "sdsl/rrr_vector.hpp"
 #include "sdsl/suffix_trees.hpp"
 #include "sdsl/k2_treap.hpp"
 #include "surf/construct_col_len.hpp"
@@ -22,6 +23,7 @@ namespace surf {
  */
 template<typename t_csa,
          typename t_k2treap,
+         int      quantile = 1, // max query time slow down by 32.
          int max_query_length = 0,
          typename t_border = sdsl::sd_vector<>,
          typename t_border_rank = typename t_border::rank_1_type,
@@ -30,8 +32,7 @@ template<typename t_csa,
          typename t_h_select_0 = typename t_h::select_0_type,
          typename t_h_select_1 = typename t_h::select_1_type,
          bool     offset_encoding = false,
-         typename t_doc_offset = sdsl::hyb_sd_vector<>,
-         int      quantile = 1 // max query time slow down by 32.
+         typename t_doc_offset = sdsl::hyb_sd_vector<>
          >
 class idx_nn_quantile
     : public topk_index_by_alphabet<typename t_csa::alphabet_category>::type {
@@ -67,8 +68,9 @@ private:
     map_to_h_type      m_map_to_h;
     topk_result_set    m_results;
 
+    rrr_vector<>       m_quantile_filter;
+    rrr_vector<>::rank_1_type m_quantile_filter_rank;
 
-    topk_result_set results;
     // Using k2treap.
     void getTopK(k2treap_iterator k2_iter, uint64_t k) {
         while (k2_iter && k != 0) {
@@ -77,19 +79,21 @@ private:
             uint64_t doc_id;
             if (offset_encoding) {
                 std::cerr << "Not implemented." << std::endl;
+                abort();
                 // TODO implement and test.
                 //uint64_t ones = m_h_rank(arrow_id);
-                //uint64_t zeros = arrow_id - ones; 
+                //uint64_t zeros = arrow_id - ones;
                 //if (m_h[arrow_id]) { // singelton.
-                //   doc_id = sa_to_doc(ones); 
+                //   doc_id = sa_to_doc(ones);
                 //} else {
-                //    doc_id = get_doc(zeros, ones); 
+                //    doc_id = get_doc(zeros, ones);
                 //}
             } else {
-                doc_id = m_doc[arrow_id];
-                std::cerr << "decode: " << doc_id << " " << arrow_id << std::endl;
+                //std::cerr << "arrow_id = " << arrow_id << " #m_doc=" << m_doc.size() << endl;
+                doc_id = m_doc[m_quantile_filter_rank(arrow_id)];
+                //std::cerr << "decode: " << doc_id << " " << arrow_id << std::endl;
             }
-            results.push_back(topk_result(doc_id, xy_w.second));
+            m_results.push_back(topk_result(doc_id, xy_w.second));
             ++k2_iter;
             k--;
         }
@@ -99,14 +103,14 @@ private:
         std::unordered_map<uint64_t, uint64_t> counts;
         std::cerr << s << "---" << e << std::endl;
         for (size_t i = s; i <= e; ++i) {
-            uint64_t doc_id = sa_to_doc(i); 
+            uint64_t doc_id = sa_to_doc(i);
             if (counts.count(doc_id) == 0)
                 counts[doc_id] = 0;
             counts[doc_id]++;
         }
         // TODO only take top k.
         for (const auto res : counts)
-            results.push_back(topk_result(res.first, res.second));
+            m_results.push_back(topk_result(res.first, res.second));
     }
 
 
@@ -117,25 +121,33 @@ public:
         const typename topk_interface::token_type* begin,
         const typename topk_interface::token_type* end,
         bool multi_occ = false, bool only_match = false) override {
-            results.clear();
+            m_results.clear();
             uint64_t sp,ep;
             bool valid = backward_search(m_csa, 0, m_csa.size() - 1,
                                       begin, end, sp, ep) > 0;
-            //std::cerr << sp << " " << ep << std::endl;
+            //std::cerr << "sp ep = " << sp << " " << ep << std::endl;
             valid &= !only_match;
             if (valid) {
-                //std::cerr << "Valid interval" << std::endl;
-                auto h_range = m_map_to_h(sp, ep, true);
-                std::get<0>(h_range)--;
-                std::get<1>(h_range)++;
+                //TODO(niklasb) we should check which one is correct
+                //and use that in map_to_dup_type
+
+                //auto h_range = m_map_to_h(sp, ep, true);
+                //std::get<0>(h_range)--;
+                //std::get<1>(h_range)++;
+                auto h_range = std::make_tuple(
+                        sp ? m_h_select_1(sp) + 1 : 0,
+                        m_h_select_1(ep+1));
+
                 //std::cerr << std::get<0>(h_range) << " " << std::get<1>(h_range) << std::endl;
-                if (!empty(h_range)) {
+                if (std::get<0>(h_range) <= std::get<1>(h_range)) {
                     uint64_t interval_size = std::get<1>(h_range) + 1 - std::get<0>(h_range);
                     //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
-                    if (interval_size / quantile >= k) { // Use grid.
+                    if (interval_size >= k*quantile) { // Use grid.
                         std::cerr << "using grid" << std::endl;
                         uint64_t depth = end - begin;
-                        std::cerr << std::get<0>(h_range) << " " << std::get<1>(h_range) <<std::endl;
+                        std::cerr <<
+                            std::get<0>(h_range) << " " << std::get<1>(h_range)
+                            << " depth=" << depth << std::endl;
                         getTopK(k2_treap_ns::top_k(m_k2treap,
                             {std::get<0>(h_range), 0},
                             {std::get<1>(h_range), depth - 1}), k);
@@ -145,7 +157,7 @@ public:
                     }
                 }
             }
-            return sort_topk_results<char>(&results);
+            return sort_topk_results<typename topk_interface::token_type>(&m_results);
     }
 
     // Decode m_doc value at postion index by using offset encoding.
@@ -195,6 +207,10 @@ public:
         } else {
             load_from_cache(m_doc, surf::KEY_DUP  , cc);
         }
+        load_from_cache(m_quantile_filter, surf::KEY_QUANTILE_FILTER_RRR, cc);
+        load_from_cache(m_quantile_filter_rank, surf::KEY_QUANTILE_FILTER_RRR_RANK, cc);
+        m_quantile_filter_rank.set_vector(&m_quantile_filter);
+
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true);
         load_from_cache(m_border_rank, surf::KEY_DOCBORDER_RANK, cc, true);
         m_border_rank.set_vector(&m_border);
@@ -255,6 +271,7 @@ public:
 
 template<typename t_csa,
          typename t_k2treap,
+         int quantile,
          int max_query_length,
          typename t_border,
          typename t_border_rank,
@@ -263,21 +280,22 @@ template<typename t_csa,
          typename t_h_select_0,
          typename t_h_select_1,
          bool     offset_encoding,
-         typename t_doc_offset,
-         int quantile
+         typename t_doc_offset
          >
-void construct(idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_border_rank,
+void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_border, t_border_rank,
                t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding,
-               t_doc_offset, quantile>& idx, const std::string&, sdsl::cache_config& cc,
+               t_doc_offset>& idx, const std::string&, sdsl::cache_config& cc,
                uint8_t num_bytes) {
     using namespace sdsl;
     using namespace std;
     using t_df = DF_TYPE;
     using cst_type = typename t_df::cst_type;
     using t_wtd = WTD_TYPE;
-    using idx_type = idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_border_rank,
-          t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset, quantile>;
+    using idx_type = idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_border, t_border_rank,
+          t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
+
+    assert(!offset_encoding);
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
@@ -358,7 +376,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_b
         load_from_cache(dup, key_dup, cc);
         cout << "dup.size()=" << dup.size() << endl;
         if (dup.size() < 20) {
-            cout << dup << endl;
+            cout << "dup=" << dup << endl;
         }
 
         std::string P_file = cache_file_name(key_p, cc);
@@ -371,8 +389,11 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_b
         t_h hrrr;
         load_from_cache(hrrr, surf::KEY_H, cc, true);
         t_h_select_1 h_select_1;
+        t_h_select_0 h_select_0;
         load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        load_from_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
         h_select_1.set_vector(&hrrr);
+        h_select_0.set_vector(&hrrr);
         cst_type cst;
         load_from_file(cst, cache_file_name<cst_type>(surf::KEY_TMPCST, cc));
         map_node_to_dup_type<cst_type, t_h_select_1> map_node_to_dup(&h_select_1, &cst);
@@ -383,11 +404,14 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_b
         //  HELPER to build the pointer structure
         vector<t_stack> depths(doc_cnt, t_stack(vector<uint32_t>(1, 0))); // doc_cnt stack for last depth
         uint64_t depth = 0;
-        uint64_t idx = 0;
+
+        // empty string, first index in H mapping
+        P_buf[0] = 0;
 
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
+            //cout << "node " << v.i << "-" << v.j << " visit=" << (int)it.visit() << endl;
             if (!cst.is_leaf(v)) {
                 if (it.visit() == 1) {
                     // node visited the first time
@@ -403,14 +427,19 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_b
                     if (!empty(r)) {
                         for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
                             depths[dup[i]].pop();
-                            P_buf[idx++] = depths[dup[i]].top();
+                            uint64_t idx = h_select_0(i+1);
+                            //cout << "  " << i << " " << idx << " "
+                                //<< depths[dup[i]].top() << endl;
+                            P_buf[idx] = depths[dup[i]].top();
                         }
                     }
                 }
-            } else if (v.i > 0) { // first node is empty string.
+            } else if (v.i > 0) {
                 uint64_t sa_pos = v.i;
                 uint64_t d = wtd[sa_pos];
-                P_buf[idx++] = depths[d].top();
+                uint64_t idx = h_select_1(sa_pos+1);
+                //cout << "  singleton " << sa_pos << " " << idx << " " << depths[d].top() << endl;
+                P_buf[idx] = depths[d].top();
             }
         }
         P_buf.close();
@@ -421,48 +450,74 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_b
         // Compute quantile filter. 1 -> include arrow, 0 -> remove arrow.
         t_h hrrr;
         load_from_cache(hrrr, KEY_H, cc, true);
+        if (hrrr.size() < 30)
+            cout << "H = " << hrrr << endl;
         t_h_select_1 h_select_1;
         load_from_cache(h_select_1, KEY_H_SELECT_1, cc, true);
         h_select_1.set_vector(&hrrr);
 
-         const uint64_t bits =  hrrr.size();
+        const uint64_t bits =  hrrr.size();
         bit_vector quantile_filter(bits, 0);
         int_vector<> weights;
         load_from_file(weights, cache_file_name(key_weights, cc));
+        if (weights.size() < 20)
+            cout << "weights = " << weights << endl;
 
-       cst_type cst;
+        cst_type cst;
         load_from_file(cst, cache_file_name<cst_type>(KEY_TMPCST, cc));
         map_node_to_dup_type<cst_type, t_h_select_1> map_node_to_dup(&h_select_1, &cst);
         std::cout << hrrr.size() << " " << weights.size() << std::endl;
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
-            if (!cst.is_leaf(v)) {
+            uint64_t start = v.i ? h_select_1(v.i)+1 : 0;
+            uint64_t end = h_select_1(v.j+1)+1;
+
+            //if (!cst.is_leaf(v)) { // Note(niklasb) leafs can also represent repetitions
                 if (it.visit() == 1) {
                     // node visited the first time
-                    uint64_t start = h_select_1(v.i+1); 
-                    uint64_t end = h_select_1(v.j+1)+1;
+
+                    // TODO(niklasb) is this still correct?
                     uint64_t weight_idx = start - v.i;
+
                     std::vector<std::tuple<uint64_t, uint64_t>> cur_weights;
                     uint64_t interval_size = end-start;
                     cur_weights.reserve(interval_size);
                     uint64_t k = interval_size / quantile;
+
+                    //auto depth = cst.depth(v);
+                    //uint64_t sa_pos = 191;
+                    //uint64_t x = h_select_1(sa_pos+1);
+                    //bool dbg=0;
+                    //if (start <= x && end > x) {
+                        //dbg=1;
+                    //}
+                    //if (dbg) {
+                        //cout << "interval = " << start << " " << end << " depth=" << depth << " k=" << k << endl;
+                    //}
+
                     if (k > 0) {
                         for (uint64_t i = start; i < end; ++i) {
                             if (hrrr[i] == 1) { // Singleton.
-                                cur_weights.push_back(std::make_tuple((uint64_t)0, i)); 
+                                cur_weights.emplace_back(0, i);
                             } else { // no singleton.
-                                cur_weights.push_back(std::make_tuple(weights[weight_idx], i)); 
+                                cur_weights.emplace_back(weights[weight_idx], i);
                                 weight_idx++;
                             }
                         }
                         std::nth_element(cur_weights.begin(), cur_weights.begin()+k, cur_weights.end(),
                                 std::greater<std::tuple<uint64_t, uint64_t>>());
-                        for (size_t i = 0; i < k; ++i)
-                                quantile_filter[std::get<1>(cur_weights[i])] = 1;
+                        //std::sort(cur_weights.begin(), cur_weights.end(),
+                                //std::greater<std::tuple<uint64_t, uint64_t>>());
+                        for (size_t i = 0; i < k; ++i) {
+                            //if (dbg && i < 10 )
+                                //cout << "  - " << std::get<0>(cur_weights[i])
+                                    //<< " " << std::get<1>(cur_weights[i]) << endl;
+                            quantile_filter[std::get<1>(cur_weights[i])] = 1;
+                        }
                     }
                 }
-            }
+            //}
         }
         size_t cnt_needed = 0;
         for (uint64_t i = 0; i < quantile_filter.size(); ++i) {
@@ -471,7 +526,13 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_b
             }
         }
         cout << "total arrows: " << bits << " after filter: " << cnt_needed << endl;
+
+        rrr_vector<> qfilter(quantile_filter);
+        rrr_vector<>::rank_1_type qfilter_rank(&qfilter);
+
         store_to_cache(quantile_filter, surf::KEY_QUANTILE_FILTER, cc);
+        store_to_cache(qfilter, surf::KEY_QUANTILE_FILTER_RRR, cc);
+        store_to_cache(qfilter_rank, surf::KEY_QUANTILE_FILTER_RRR_RANK, cc);
     }
     if (offset_encoding) {
         cout << "...DOC_OFFSET" << endl;
@@ -547,31 +608,48 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_b
         t_h hrrr;
         load_from_cache(hrrr, surf::KEY_H, cc, true);
         cout << "P_buf.size()=" << P_buf.size() << endl;
+
         bit_vector quantile_filter;
         load_from_cache(quantile_filter, surf::KEY_QUANTILE_FILTER, cc);
+
         {
             int_vector<> id_v(P_buf.size(), 0, bits::hi(P_buf.size()) + 1);
             util::set_to_id(id_v);
             filter(id_v, quantile_filter);
+            cout << "x size = " << id_v.size() << endl;
+            if (id_v.size() < 30) cout << "x=" << id_v << endl;
             store_to_file(id_v, W_and_P_file + ".x");
+            //for (size_t i = 0; i < id_v.size(); ++i) {
+                //if (id_v[i] == 191) {
+                    //cout << "X COORDINATE 191 FOUND at " << i << endl;
+                //}
+            //}
         }
         {
             int_vector<> P;
             load_from_cache(P, key_p, cc);
             filter(P, quantile_filter);
+            cout << "y size = " << P.size() << endl;
+            if (P.size() < 30) cout << "y=" << P << endl;
+            //cout << "y(191)=" << P[191] << endl;
             store_to_file(P, W_and_P_file + ".y");
         }
         {
             int_vector<> darray;
             load_from_cache(darray, surf::KEY_DARRAY, cc);
+
             int_vector<> dup_nosingletons;
             load_from_cache(dup_nosingletons, key_dup, cc);
+
             int_vector<> dup(dup_nosingletons);
             dup.resize(quantile_filter.size());
+
             int_vector<> W_nosingletons;
             load_from_cache(W_nosingletons, key_weights, cc);
+
             int_vector<> W(W_nosingletons);
             W.resize(quantile_filter.size());
+
             // Add singletons and filter by quantiles.
             uint64_t dup_idx = 0;
             uint64_t idx = 0;
@@ -579,13 +657,17 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, max_query_length, t_border, t_b
             for (size_t i = 0; i < quantile_filter.size(); ++i) {
                 if (quantile_filter[i]) {
                     dup[idx] = hrrr[i] ? darray[sa_id] : dup_nosingletons[dup_idx];
-                    W[idx++] = hrrr[i] ? 1 : (W_nosingletons[dup_idx++]+1); 
+                    W[idx++] = hrrr[i] ? 1 : (W_nosingletons[dup_idx]+1);
                 }
                 if(hrrr[i]) sa_id++;
+                else dup_idx++;
             }
             dup.resize(idx);
             W.resize(idx);
             store_to_cache(dup, key_dup, cc);
+            cout << "w size = " << W.size() << endl;
+            if (W.size() < 30) cout << "w=" << W << endl;
+            //cout << "w(191)=" << W[191] << endl;
             store_to_file(W, W_and_P_file + ".w");
         }
         cout << "build k2treap" << endl;

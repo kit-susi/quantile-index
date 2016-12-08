@@ -1,4 +1,4 @@
-#ifndef SURF_IDX_NN_HPP
+#ifndef SURF_IDX_NN_1P
 #define SURF_IDX_NN_HPP
 
 #include <algorithm>
@@ -470,6 +470,7 @@ void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_bor
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
+            cout << "node " << v.i << "-" << v.j << " visit=" << (int)it.visit() << endl;
             if (!cst.is_leaf(v)) {
                 if (it.visit() == 1) {
                     // node visited the first time
@@ -485,6 +486,7 @@ void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_bor
                     if (!empty(r)) {
                         for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
                             depths[dup[i]].pop();
+                            cout << "  " << depths[dup[i]].top() << endl;
                             P_buf[i] = depths[dup[i]].top();
                         }
                     }
@@ -591,18 +593,21 @@ void construct(idx_nn<t_csa, t_k2treap, max_query_length, t_rmq, t_border, t_bor
             int_vector<> id_v(P_buf.size(), 0, bits::hi(P_buf.size()) + 1);
             util::set_to_id(id_v);
             filter(id_v, add_to_grid_bv);
+            if (id_v.size() < 30) cout << "x=" << id_v << endl;
             store_to_file(id_v, W_and_P_file + ".x");
         }
         {
             int_vector<> P;
             load_from_cache(P, key_p, cc);
             filter(P, add_to_grid_bv);
+            if (P.size() < 30) cout << "y=" << P << endl;
             store_to_file(P, W_and_P_file + ".y");
         }
         {
             int_vector<> W;
             load_from_cache(W, key_weights, cc);
             filter(W, add_to_grid_bv);
+            if (W.size() < 30) cout << "w=" << W << endl;
             store_to_file(W, W_and_P_file + ".w");
         }
         cout << "build k2treap" << endl;

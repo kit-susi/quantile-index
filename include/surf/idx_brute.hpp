@@ -48,6 +48,7 @@ public:
 
         std::map<uint64_t, double> occs_by_doc;
         for (auto pos : occs) {
+            //std::cerr << "occurrence " << pos << std::endl;
             auto doc = m_doc_splitters_rank(pos);
             occs_by_doc[doc] += 1;
         }

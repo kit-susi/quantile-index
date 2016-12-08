@@ -2,3 +2,5 @@
 *kateproject*
 /.idea
 /cmake-build-*
+/peda*
+/.gdb*

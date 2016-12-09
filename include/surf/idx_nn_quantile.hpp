@@ -487,6 +487,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         load_from_cache(P, key_p, cc);
         if (P.size() <30) cout << "P=" << P << endl;
 
+        std::vector<std::tuple<uint64_t, uint64_t>> cur_weights;
+
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
@@ -499,50 +501,27 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                     // TODO(niklasb) is this still correct?
                     uint64_t weight_idx = start - v.i;
 
-                    std::vector<std::tuple<uint64_t, uint64_t>> cur_weights;
                     uint64_t interval_size = end - start;
-                    cur_weights.reserve(interval_size);
                     uint64_t k = interval_size / quantile;
 
                     if (k > 0) {
                         auto depth = cst.depth(v);
-                        //uint64_t sa_pos = 191;
-                        //uint64_t x = h_select_1(sa_pos+1);
-                        //bool dbg=0;
-                        //if (start <= x && end > x) {
-                            //dbg=1;
-                        //}
-                        //if (dbg) {
-                            //cout << "interval = " << start << " " << end << " depth=" << depth << " k=" << k << endl;
-                        //}
-
+                        cur_weights.clear();
                         for (uint64_t i = start; i < end; ++i) {
-                            if (hrrr[i] == 1) { // Singleton.
-                                cur_weights.emplace_back(0, i);
+                            auto valid = P[i] < depth;
+                            if (hrrr[i] == 1) { // singleton.
+                                if (valid) cur_weights.emplace_back(0, i);
                             } else { // no singleton.
-                                cur_weights.emplace_back(weights[weight_idx], i);
-                                weight_idx++;
+                                if (valid) cur_weights.emplace_back(weights[weight_idx], i);
+                                ++weight_idx;
                             }
                         }
 
-                        //std::nth_element(cur_weights.begin(), cur_weights.begin()+k, cur_weights.end(),
-                                //std::greater<std::tuple<uint64_t, uint64_t>>());
-                        std::sort(cur_weights.begin(), cur_weights.end(),
+                        k = min(k, cur_weights.size());
+                        std::nth_element(cur_weights.begin(), cur_weights.begin()+k, cur_weights.end(),
                                 std::greater<std::tuple<uint64_t, uint64_t>>());
-                        size_t j = 0;
-                        for (size_t i = 0; i < k; ++i) {
-                            //if (dbg && i < 10 )
-                                //cout << "  - " << std::get<0>(cur_weights[i])
-                                    //<< " " << std::get<1>(cur_weights[i]) << endl;
-
-                            while(j < cur_weights.size() && P[get<1>(cur_weights[j])] >= depth)
-                                ++j;
-                            if (j == cur_weights.size())
-                                break;
-
-                            quantile_filter[get<1>(cur_weights[j])] = 1;
-                            ++j;
-                        }
+                        for (size_t i = 0; i < k; ++i)
+                            quantile_filter[get<1>(cur_weights[i])] = 1;
                     }
                 }
             }

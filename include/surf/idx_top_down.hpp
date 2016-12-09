@@ -367,6 +367,12 @@ void construct(idx_top_down<t_csa,
         t_h_select_0 h_select_0(&hrrr);
         store_to_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
         store_to_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
+    }
+    if (!cache_file_exists<t_h_rank>(surf::KEY_H_RANK, cc)) {
+        bit_vector h;
+        load_from_cache(h, surf::KEY_H, cc);
+        t_h hrrr(h);
+        load_from_cache(hrrr, surf::KEY_H, cc);
         t_h_rank h_rank(&hrrr);
         store_to_cache(h_rank, surf::KEY_H_RANK, cc, true);
     }

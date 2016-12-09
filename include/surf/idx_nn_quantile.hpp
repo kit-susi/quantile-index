@@ -258,6 +258,8 @@ public:
         written_bytes += m_h_select_0.serialize(out, child, "H_SELECT_0");
         written_bytes += m_h_select_1.serialize(out, child, "H_SELECT_1");
         written_bytes += m_k2treap.serialize(out, child, "W_AND_P");
+        written_bytes += m_quantile_filter.serialize(out, child, "QUANTILE_FILTER");
+        written_bytes += m_quantile_filter_rank.serialize(out, child, "QUANTILE_FILTER_RANK");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }

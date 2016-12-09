@@ -218,11 +218,12 @@ public:
     void load(sdsl::cache_config& cc) {
         load_from_cache(m_csa, surf::KEY_CSA, cc, true);
         if (offset_encoding) {
+            // TODO(niklasb) don't forget to use QUANTILE_SUFFIX if we ever fix this
             load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET, cc, true);
             load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT, cc, true);
             m_doc_offset_select.set_vector(&m_doc_offset);
         } else {
-            load_from_cache(m_doc, surf::KEY_DUP  , cc);
+            load_from_cache(m_doc, surf::KEY_DUP + QUANTILE_SUFFIX(), cc);
         }
 
         load_from_cache(m_quantile_filter,
@@ -695,7 +696,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
             }
             dup.resize(idx);
             W.resize(idx);
-            store_to_cache(dup, key_dup, cc);
+            store_to_cache(dup, key_dup + idx_type::QUANTILE_SUFFIX(), cc);
             cout << "w size = " << W.size() << endl;
             if (W.size() < 30) cout << "w=" << W << endl;
             //cout << "w(191)=" << W[191] << endl;

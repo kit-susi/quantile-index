@@ -53,6 +53,10 @@ public:
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
 
+    static constexpr string QUANTILE_SUFFIX() {
+        return string("_q") + std::to_string(quantile);
+    };
+
 private:
     csa_type           m_csa;
     border_type        m_border;
@@ -139,7 +143,9 @@ public:
                 if (!empty(h_range)) {
                     uint64_t interval_size = get<1>(h_range) + 1 - get<0>(h_range);
                     std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
-                    if (interval_size >= k*quantile) { // Use grid.
+
+                    // interval_size > 1 handles the special case interval_size = quantile = k = 1
+                    if (interval_size >= k*quantile && interval_size > 1) { // Use grid.
                         std::cerr << "using grid" << std::endl;
                         uint64_t depth = end - begin;
 
@@ -148,12 +154,13 @@ public:
                         // round down to preceding sample (border is exclusive!)
                         uint64_t to = m_quantile_filter_rank(get<1>(h_range)+1);
 
+                        std::cerr
+                            << "x range = " << get<0>(h_range) << " " << get<1>(h_range)
+                            << " q range = " << from << "-" << to
+                            << " depth range = 0-" << depth-1 << std::endl;
+
                         if (from < to) {
                             --to;
-                            std::cerr
-                                << "x range = " << get<0>(h_range) << " " << get<1>(h_range)
-                                << " q range = " << from << "-" << to
-                                << " depth range = 0-" << depth-1 << std::endl;
                             if (from <= to) {
                                 getTopK(k2_treap_ns::top_k(m_k2treap,
                                             {from, 0},
@@ -217,8 +224,11 @@ public:
         } else {
             load_from_cache(m_doc, surf::KEY_DUP  , cc);
         }
-        load_from_cache(m_quantile_filter, surf::KEY_QUANTILE_FILTER, cc);
-        load_from_cache(m_quantile_filter_rank, surf::KEY_QUANTILE_FILTER_RANK, cc);
+
+        load_from_cache(m_quantile_filter,
+                surf::KEY_QUANTILE_FILTER + QUANTILE_SUFFIX(), cc);
+        load_from_cache(m_quantile_filter_rank,
+                surf::KEY_QUANTILE_FILTER_RANK + QUANTILE_SUFFIX(), cc);
         m_quantile_filter_rank.set_vector(&m_quantile_filter);
 
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true);
@@ -232,11 +242,11 @@ public:
         m_h_select_0.set_vector(&m_h);
         m_h_select_1.set_vector(&m_h);
         m_map_to_h = map_to_h_type(&m_h_select_1);
-        auto key_w_and_p = (offset_encoding ?
-                                  surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
-                                 std::to_string(max_query_length);
-        key_w_and_p = key_w_and_p + "_q" + std::to_string(quantile);
-        load_from_cache(m_k2treap, key_w_and_p, cc, true);
+
+        auto key_w_and_p =
+            (offset_encoding ? surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
+            std::to_string(max_query_length);
+        load_from_cache(m_k2treap, key_w_and_p + QUANTILE_SUFFIX(), cc, true);
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
@@ -315,7 +325,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
     auto key_w_and_p = (offset_encoding ?
                               surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
                              std::to_string(max_query_length);
-    key_w_and_p = key_w_and_p + "_q" + to_string(quantile);
+    key_w_and_p += idx_type::QUANTILE_SUFFIX();
 
     const auto key_p = offset_encoding ?
                        surf::KEY_P_G : surf::KEY_P;
@@ -473,7 +483,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
     }
 
     cout << "...quantile filter" << endl;
-    if (!cache_file_exists(surf::KEY_QUANTILE_FILTER, cc)) {
+    if (!cache_file_exists(surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
         // Compute quantile filter. 1 -> include arrow, 0 -> remove arrow.
         t_h hrrr;
         load_from_cache(hrrr, KEY_H_LEFT, cc, true);
@@ -483,7 +493,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         load_from_cache(h_select_1, KEY_H_LEFT_SELECT_1, cc, true);
         h_select_1.set_vector(&hrrr);
 
-        const uint64_t bits =  hrrr.size();
+        // TODO(niklasb) why is hrrr one too large?
+        const uint64_t bits =  hrrr.size() - 1;
         bit_vector quantile_filter(bits, 0);
         int_vector<> weights;
         load_from_file(weights, cache_file_name(key_weights, cc));
@@ -549,8 +560,10 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         rrr_vector<> qfilter(quantile_filter);
         rrr_vector<>::rank_1_type qfilter_rank(&qfilter);
 
-        store_to_cache(qfilter, surf::KEY_QUANTILE_FILTER, cc);
-        store_to_cache(qfilter_rank, surf::KEY_QUANTILE_FILTER_RANK, cc);
+        store_to_cache(qfilter,
+                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc);
+        store_to_cache(qfilter_rank,
+                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc);
     }
     if (offset_encoding) {
         cout << "...DOC_OFFSET" << endl;
@@ -629,8 +642,10 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
         rrr_vector<> quantile_filter;
         rrr_vector<>::rank_1_type qfilter_rank(&quantile_filter);
-        load_from_cache(quantile_filter, surf::KEY_QUANTILE_FILTER, cc);
-        load_from_cache(qfilter_rank, surf::KEY_QUANTILE_FILTER_RANK, cc);
+        load_from_cache(quantile_filter,
+                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc);
+        load_from_cache(qfilter_rank,
+                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc);
         qfilter_rank.set_vector(&quantile_filter);
 
         {

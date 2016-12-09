@@ -49,18 +49,23 @@ const std::string KEY_INVFILE_PLISTS = "invfile_postings_lists";
 const std::string KEY_INVFILE_DOCPERM = "invfile_docperm";
 const std::string KEY_INVFILE_IDOCPERM = "invfile_inv_docperm";
 const std::string KEY_F_T = "Ft";
+
 const std::string KEY_H = "H";
 const std::string KEY_H_SELECT  = "H_select";
 const std::string KEY_H_SELECT_0  = "H_select_0";
 const std::string KEY_H_SELECT_1  = "H_select_1";
 const std::string KEY_H_RANK  = "H_rank";
+
+const std::string KEY_H_LEFT = "H_left";
+const std::string KEY_H_LEFT_SELECT_0  = "H_left_select_0";
+const std::string KEY_H_LEFT_SELECT_1  = "H_left_select_1";
+
 const std::string KEY_NEXT_OCC = "next_occ";
 const std::string KEY_CSA = "csa";
 const std::string KEY_MAXTF = "maxtf";
 const std::string KEY_MAXDOCLEN = "maxdoclen";
 const std::string KEY_QUANTILE_FILTER = "quantile_filter";
-const std::string KEY_QUANTILE_FILTER_RRR = "quantile_filter_rrr";
-const std::string KEY_QUANTILE_FILTER_RRR_RANK = "quantile_filter_rrr_rank";
+const std::string KEY_QUANTILE_FILTER_RANK = "quantile_filter_rrr_rank";
 const std::string KEY_TAILS = "tails";
 const std::string KEY_TAILS_RANK = "tails_rank";
 const std::string KEY_TAILS_SELECT = "tails_select";

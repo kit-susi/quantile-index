@@ -98,12 +98,14 @@ public:
      */
     df_sada(sdsl::cache_config& cc) {
         using namespace sdsl;
+        auto key_h = t_new_h_mapping ? surf::KEY_H_LEFT : surf::KEY_H;
+
         auto event = memory_monitor::event("construct df_sada");
-        if (cache_file_exists(KEY_H, cc) && cache_file_exists(
+        if (cache_file_exists(key_h, cc) && cache_file_exists(
                     greedy_order ? KEY_DUP_G : KEY_DUP, cc)) {
             bit_vector h;
-            load_from_cache(h, KEY_H, cc);
-            store_to_cache(h, KEY_H, cc);
+            load_from_cache(h, key_h, cc);
+            store_to_cache(h, key_h, cc);
             // convert to proper bv type
             m_bv = bit_vector_type(h);
             m_sel = select_type(&m_bv);
@@ -255,7 +257,7 @@ public:
         std::cerr << "h_idx=" << h_idx << std::endl;
         std::cerr << "dup_idx=" << dup_idx << std::endl;
         h.resize(h_idx);
-        store_to_cache(h, KEY_H, cc);
+        store_to_cache(h, key_h, cc);
         util::clear(cst);
         // convert to proper bv type
         m_bv = bit_vector_type(h);

@@ -142,7 +142,8 @@ parse_collection(std::string collection_dir)
 }
 
 // Remove all elements from array marked with zero in add_to_output.
-void filter(sdsl::int_vector<>& array, const sdsl::bit_vector& add_to_output) {
+template <typename BV>
+void filter(sdsl::int_vector<>& array, const BV& add_to_output) {
     // Count output size.
     uint64_t j = 0;
     for (uint64_t i = 0; i < array.size(); ++i) {

@@ -207,8 +207,8 @@ public:
         } else {
             load_from_cache(m_doc, surf::KEY_DUP  , cc);
         }
-        load_from_cache(m_quantile_filter, surf::KEY_QUANTILE_FILTER_RRR, cc);
-        load_from_cache(m_quantile_filter_rank, surf::KEY_QUANTILE_FILTER_RRR_RANK, cc);
+        load_from_cache(m_quantile_filter, surf::KEY_QUANTILE_FILTER, cc);
+        load_from_cache(m_quantile_filter_rank, surf::KEY_QUANTILE_FILTER_RANK, cc);
         m_quantile_filter_rank.set_vector(&m_quantile_filter);
 
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true);
@@ -216,9 +216,9 @@ public:
         m_border_rank.set_vector(&m_border);
         load_from_cache(m_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
         m_border_select.set_vector(&m_border);
-        load_from_cache(m_h, surf::KEY_H, cc, true);
-        load_from_cache(m_h_select_0, surf::KEY_H_SELECT_0, cc, true);
-        load_from_cache(m_h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        load_from_cache(m_h, surf::KEY_H_LEFT, cc, true);
+        load_from_cache(m_h_select_0, surf::KEY_H_LEFT_SELECT_0, cc, true);
+        load_from_cache(m_h_select_1, surf::KEY_H_LEFT_SELECT_1, cc, true);
         m_h_select_0.set_vector(&m_h);
         m_h_select_1.set_vector(&m_h);
         m_map_to_h = map_to_h_type(&m_h_select_1);
@@ -334,13 +334,13 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         construct(df, "", cc, 0);
         store_to_cache(df, key_df, cc, true);
         bit_vector h;
-        load_from_cache(h, surf::KEY_H, cc);
+        load_from_cache(h, surf::KEY_H_LEFT, cc);
         t_h hrrr = h;
-        store_to_cache(hrrr, surf::KEY_H, cc, true);
+        store_to_cache(hrrr, surf::KEY_H_LEFT, cc, true);
         t_h_select_0 h_select_0(&hrrr);
         t_h_select_1 h_select_1(&hrrr);
-        store_to_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
-        store_to_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+        store_to_cache(h_select_0, surf::KEY_H_LEFT_SELECT_0, cc, true);
+        store_to_cache(h_select_1, surf::KEY_H_LEFT_SELECT_1, cc, true);
     }
     cout << "...DOC_BORDER" << endl;
     if (!cache_file_exists<t_border>(surf::KEY_DOCBORDER, cc) or
@@ -387,11 +387,11 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         load_from_cache(wtd, surf::KEY_WTD, cc, true);
 
         t_h hrrr;
-        load_from_cache(hrrr, surf::KEY_H, cc, true);
+        load_from_cache(hrrr, surf::KEY_H_LEFT, cc, true);
         t_h_select_1 h_select_1;
         t_h_select_0 h_select_0;
-        load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
-        load_from_cache(h_select_0, surf::KEY_H_SELECT_0, cc, true);
+        load_from_cache(h_select_1, surf::KEY_H_LEFT_SELECT_1, cc, true);
+        load_from_cache(h_select_0, surf::KEY_H_LEFT_SELECT_0, cc, true);
         h_select_1.set_vector(&hrrr);
         h_select_0.set_vector(&hrrr);
         cst_type cst;
@@ -461,11 +461,11 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
     if (!cache_file_exists(surf::KEY_QUANTILE_FILTER, cc)) {
         // Compute quantile filter. 1 -> include arrow, 0 -> remove arrow.
         t_h hrrr;
-        load_from_cache(hrrr, KEY_H, cc, true);
+        load_from_cache(hrrr, KEY_H_LEFT, cc, true);
         if (hrrr.size() < 30)
             cout << "H = " << hrrr << endl;
         t_h_select_1 h_select_1;
-        load_from_cache(h_select_1, KEY_H_SELECT_1, cc, true);
+        load_from_cache(h_select_1, KEY_H_LEFT_SELECT_1, cc, true);
         h_select_1.set_vector(&hrrr);
 
         const uint64_t bits =  hrrr.size();
@@ -555,9 +555,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         rrr_vector<> qfilter(quantile_filter);
         rrr_vector<>::rank_1_type qfilter_rank(&qfilter);
 
-        store_to_cache(quantile_filter, surf::KEY_QUANTILE_FILTER, cc);
-        store_to_cache(qfilter, surf::KEY_QUANTILE_FILTER_RRR, cc);
-        store_to_cache(qfilter_rank, surf::KEY_QUANTILE_FILTER_RRR_RANK, cc);
+        store_to_cache(qfilter, surf::KEY_QUANTILE_FILTER, cc);
+        store_to_cache(qfilter_rank, surf::KEY_QUANTILE_FILTER_RANK, cc);
     }
     if (offset_encoding) {
         cout << "...DOC_OFFSET" << endl;
@@ -566,9 +565,9 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
             load_from_cache(darray, surf::KEY_DARRAY, cc);
             load_from_cache(dup, key_dup, cc);
             t_h hrrr;
-            load_from_cache(hrrr, surf::KEY_H, cc, true);
+            load_from_cache(hrrr, surf::KEY_H_LEFT, cc, true);
             t_h_select_1 h_select_1;
-            load_from_cache(h_select_1, surf::KEY_H_SELECT_1, cc, true);
+            load_from_cache(h_select_1, surf::KEY_H_LEFT_SELECT_1, cc, true);
             h_select_1.set_vector(&hrrr);
 
             // Iterate through all nodes.
@@ -631,10 +630,10 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         int_vector_buffer<> P_buf(cache_file_name(key_p, cc));
         std::string W_and_P_file = cache_file_name(key_w_and_p, cc);
         t_h hrrr;
-        load_from_cache(hrrr, surf::KEY_H, cc, true);
+        load_from_cache(hrrr, surf::KEY_H_LEFT, cc, true);
         cout << "P_buf.size()=" << P_buf.size() << endl;
 
-        bit_vector quantile_filter;
+        rrr_vector<> quantile_filter;
         load_from_cache(quantile_filter, surf::KEY_QUANTILE_FILTER, cc);
 
         {

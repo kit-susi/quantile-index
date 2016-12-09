@@ -470,13 +470,11 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
-            uint64_t start = v.i ? h_select_1(v.i)+1 : 0;
-            uint64_t end = h_select_1(v.j+1)+1;
-
-            //if (!cst.is_leaf(v)) { // Note(niklasb) leafs can also represent repetitions
+            if (!cst.is_leaf(v)) {
                 if (it.visit() == 1) {
                     // node visited the first time
-
+                    uint64_t start = v.i ? h_select_1(v.i)+1 : 0;
+                    uint64_t end = h_select_1(v.j+1)+1;
                     // TODO(niklasb) is this still correct?
                     uint64_t weight_idx = start - v.i;
 
@@ -517,7 +515,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                         }
                     }
                 }
-            //}
+            }
         }
         size_t cnt_needed = 0;
         for (uint64_t i = 0; i < quantile_filter.size(); ++i) {

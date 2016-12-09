@@ -90,7 +90,7 @@ private:
                 //}
             } else {
                 //std::cerr << "arrow_id = " << arrow_id << " #m_doc=" << m_doc.size() << endl;
-                doc_id = m_doc[m_quantile_filter_rank(arrow_id)];
+                doc_id = m_doc[arrow_id];
                 //std::cerr << "decode: " << doc_id << " " << arrow_id << std::endl;
             }
             m_results.push_back(topk_result(doc_id, xy_w.second));
@@ -121,6 +121,7 @@ public:
         const typename topk_interface::token_type* begin,
         const typename topk_interface::token_type* end,
         bool multi_occ = false, bool only_match = false) override {
+            using std::get;
             m_results.clear();
             uint64_t sp,ep;
             bool valid = backward_search(m_csa, 0, m_csa.size() - 1,
@@ -130,27 +131,36 @@ public:
             if (valid) {
                 //TODO(niklasb) we should check which one is correct
                 //and use that in map_to_dup_type
-
-                //auto h_range = m_map_to_h(sp, ep, true);
-                //std::get<0>(h_range)--;
-                //std::get<1>(h_range)++;
                 range_type h_range {
                     m_h_select_1(sp+1),
                     m_h_select_1(ep+1) };
 
-                std::cerr << std::get<0>(h_range) << " " << std::get<1>(h_range) << std::endl;
+                std::cerr << get<0>(h_range) << " " << get<1>(h_range) << std::endl;
                 if (!empty(h_range)) {
-                    uint64_t interval_size = std::get<1>(h_range) + 1 - std::get<0>(h_range);
+                    uint64_t interval_size = get<1>(h_range) + 1 - get<0>(h_range);
                     std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
                     if (interval_size >= k*quantile) { // Use grid.
                         std::cerr << "using grid" << std::endl;
                         uint64_t depth = end - begin;
-                        std::cerr <<
-                            std::get<0>(h_range) << " " << std::get<1>(h_range)
-                            << " depth=" << depth << std::endl;
-                        getTopK(k2_treap_ns::top_k(m_k2treap,
-                            {std::get<0>(h_range), 0},
-                            {std::get<1>(h_range), depth - 1}), k);
+
+                        // round up to succeeding sample
+                        uint64_t from = m_quantile_filter_rank(get<0>(h_range));
+                        // round down to preceding sample (border is exclusive!)
+                        uint64_t to = m_quantile_filter_rank(get<1>(h_range)+1);
+
+                        if (from < to) {
+                            --to;
+                            std::cerr
+                                << "x range = " << get<0>(h_range) << " " << get<1>(h_range)
+                                << " q range = " << from << "-" << to
+                                << " depth range = 0-" << depth-1 << std::endl;
+                            if (from <= to) {
+                                getTopK(k2_treap_ns::top_k(m_k2treap,
+                                            {from, 0},
+                                            {to, depth - 1}),
+                                        k);
+                            }
+                        }
                     } else { // Naive fallback.
                         std::cerr << "fallback" << std::endl;
                         getTopK(sp, ep);
@@ -616,20 +626,17 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         cout << "P_buf.size()=" << P_buf.size() << endl;
 
         rrr_vector<> quantile_filter;
+        rrr_vector<>::rank_1_type qfilter_rank(&quantile_filter);
         load_from_cache(quantile_filter, surf::KEY_QUANTILE_FILTER, cc);
+        load_from_cache(qfilter_rank, surf::KEY_QUANTILE_FILTER_RANK, cc);
+        qfilter_rank.set_vector(&quantile_filter);
 
         {
-            int_vector<> id_v(P_buf.size(), 0, bits::hi(P_buf.size()) + 1);
+            auto keep = qfilter_rank(quantile_filter.size());
+            int_vector<> id_v(keep, 0, bits::hi(keep) + 1);
             util::set_to_id(id_v);
-            filter(id_v, quantile_filter);
             cout << "x size = " << id_v.size() << endl;
-            if (id_v.size() < 30) cout << "x=" << id_v << endl;
             store_to_file(id_v, W_and_P_file + ".x");
-            //for (size_t i = 0; i < id_v.size(); ++i) {
-                //if (id_v[i] == 191) {
-                    //cout << "X COORDINATE 191 FOUND at " << i << endl;
-                //}
-            //}
         }
         {
             int_vector<> P;
@@ -663,7 +670,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
             for (size_t i = 0; i < quantile_filter.size(); ++i) {
                 if (quantile_filter[i]) {
                     dup[idx] = hrrr[i] ? darray[sa_id] : dup_nosingletons[dup_idx];
-                    W[idx++] = hrrr[i] ? 1 : (W_nosingletons[dup_idx]+1);
+                    W[idx] = hrrr[i] ? 1 : (W_nosingletons[dup_idx]+1);
+                    ++idx;
                 }
                 if(hrrr[i]) sa_id++;
                 else dup_idx++;

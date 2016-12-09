@@ -219,13 +219,13 @@ if __name__ == '__main__':
 
                     if not result_makes_sense(result, args.e):
                         print 'Queries:', repr(queries)
-                        print 'Result is not sorted:', result
+                        print 'FAIL: Result is not sorted:', result
                         assert 0
                     if (last_result is not None
                             and not results_are_same(last_result, result,
                                 args.e, args.ignore_singletons)):
                         print 'Queries:', repr(queries)
-                        print 'Different results:'
+                        print 'FAIL: Different results:'
                         print_side_by_side(last_result, result)
                         sys.exit(1)
                     last_result = result

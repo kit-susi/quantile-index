@@ -134,14 +134,14 @@ public:
                 //auto h_range = m_map_to_h(sp, ep, true);
                 //std::get<0>(h_range)--;
                 //std::get<1>(h_range)++;
-                auto h_range = std::make_tuple(
-                        sp ? m_h_select_1(sp) + 1 : 0,
-                        m_h_select_1(ep+1));
+                range_type h_range {
+                    m_h_select_1(sp+1),
+                    m_h_select_1(ep+1) };
 
-                //std::cerr << std::get<0>(h_range) << " " << std::get<1>(h_range) << std::endl;
-                if (std::get<0>(h_range) <= std::get<1>(h_range)) {
+                std::cerr << std::get<0>(h_range) << " " << std::get<1>(h_range) << std::endl;
+                if (!empty(h_range)) {
                     uint64_t interval_size = std::get<1>(h_range) + 1 - std::get<0>(h_range);
-                    //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
+                    std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
                     if (interval_size >= k*quantile) { // Use grid.
                         std::cerr << "using grid" << std::endl;
                         uint64_t depth = end - begin;
@@ -413,17 +413,29 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
             auto v = *it; // get the node by dereferencing the iterator
             //cout << "node " << v.i << "-" << v.j << " visit=" << (int)it.visit() << endl;
             if (!cst.is_leaf(v)) {
+                auto left_rb = cst.rb(cst.select_child(v, 1));
+                //cout << "  left_rb=" << left_rb  << endl;
+                auto x1 = h_select_1(left_rb + 1);
+                auto left1 = x1 - left_rb;
+                auto x2 = h_select_1(left_rb + 2);
+                auto left2 = x2 - left_rb - 1;
+                //cout << "  " << x1 << " " << x2 << " " << left1 << " "<< left2 << endl;
+                range_type r = { left1, left2 - 1 };
+                //range_type r = map_node_to_dup(v);
+                //cout << "  r=" << get<0>(r) << "-" << get<1>(r) << endl;
+
                 if (it.visit() == 1) {
                     // node visited the first time
                     depth = cst.depth(v);
-                    range_type r = map_node_to_dup(v);
+
                     if (!empty(r)) {
+                        //cout << "  non-empty" << endl;
                         for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
                             depths[dup[i]].push(depth);
                         }
                     }
                 } else { // node visited the second time
-                    range_type r = map_node_to_dup(v);
+                    //range_type r = map_node_to_dup(v);
                     if (!empty(r)) {
                         for (size_t i = get<0>(r); i <= get<1>(r); ++i) {
                             depths[dup[i]].pop();
@@ -467,34 +479,40 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         load_from_file(cst, cache_file_name<cst_type>(KEY_TMPCST, cc));
         map_node_to_dup_type<cst_type, t_h_select_1> map_node_to_dup(&h_select_1, &cst);
         std::cout << hrrr.size() << " " << weights.size() << std::endl;
+
+        int_vector<> P;
+        load_from_cache(P, key_p, cc);
+        if (P.size() <30) cout << "P=" << P << endl;
+
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
             if (!cst.is_leaf(v)) {
                 if (it.visit() == 1) {
                     // node visited the first time
-                    uint64_t start = v.i ? h_select_1(v.i)+1 : 0;
+                    uint64_t start = h_select_1(v.i+1);
                     uint64_t end = h_select_1(v.j+1)+1;
+
                     // TODO(niklasb) is this still correct?
                     uint64_t weight_idx = start - v.i;
 
                     std::vector<std::tuple<uint64_t, uint64_t>> cur_weights;
-                    uint64_t interval_size = end-start;
+                    uint64_t interval_size = end - start;
                     cur_weights.reserve(interval_size);
                     uint64_t k = interval_size / quantile;
 
-                    //auto depth = cst.depth(v);
-                    //uint64_t sa_pos = 191;
-                    //uint64_t x = h_select_1(sa_pos+1);
-                    //bool dbg=0;
-                    //if (start <= x && end > x) {
-                        //dbg=1;
-                    //}
-                    //if (dbg) {
-                        //cout << "interval = " << start << " " << end << " depth=" << depth << " k=" << k << endl;
-                    //}
-
                     if (k > 0) {
+                        auto depth = cst.depth(v);
+                        //uint64_t sa_pos = 191;
+                        //uint64_t x = h_select_1(sa_pos+1);
+                        //bool dbg=0;
+                        //if (start <= x && end > x) {
+                            //dbg=1;
+                        //}
+                        //if (dbg) {
+                            //cout << "interval = " << start << " " << end << " depth=" << depth << " k=" << k << endl;
+                        //}
+
                         for (uint64_t i = start; i < end; ++i) {
                             if (hrrr[i] == 1) { // Singleton.
                                 cur_weights.emplace_back(0, i);
@@ -503,15 +521,24 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                                 weight_idx++;
                             }
                         }
-                        std::nth_element(cur_weights.begin(), cur_weights.begin()+k, cur_weights.end(),
-                                std::greater<std::tuple<uint64_t, uint64_t>>());
-                        //std::sort(cur_weights.begin(), cur_weights.end(),
+
+                        //std::nth_element(cur_weights.begin(), cur_weights.begin()+k, cur_weights.end(),
                                 //std::greater<std::tuple<uint64_t, uint64_t>>());
+                        std::sort(cur_weights.begin(), cur_weights.end(),
+                                std::greater<std::tuple<uint64_t, uint64_t>>());
+                        size_t j = 0;
                         for (size_t i = 0; i < k; ++i) {
                             //if (dbg && i < 10 )
                                 //cout << "  - " << std::get<0>(cur_weights[i])
                                     //<< " " << std::get<1>(cur_weights[i]) << endl;
-                            quantile_filter[std::get<1>(cur_weights[i])] = 1;
+
+                            while(j < cur_weights.size() && P[get<1>(cur_weights[j])] >= depth)
+                                ++j;
+                            if (j == cur_weights.size())
+                                break;
+
+                            quantile_filter[get<1>(cur_weights[j])] = 1;
+                            ++j;
                         }
                     }
                 }

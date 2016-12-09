@@ -66,7 +66,8 @@ struct df_sada_trait<sdsl::byte_alphabet_tag> {
 template<typename t_csa,
          typename t_bv = sdsl::bit_vector,
          typename t_sel = typename t_bv::select_1_type,
-         bool t_greedy_order = true>
+         bool t_greedy_order = true,
+         bool t_new_h_mapping = false>
 class df_sada {
 public:
     typedef typename sdsl::int_vector<>::size_type size_type;
@@ -195,6 +196,8 @@ public:
                     ++last_io_id;
                     h[h_idx++] = 1;
                 }
+                if (t_new_h_mapping)
+                    h[h_idx++] = 1;
                 if (v != cst.root()) {
                     for (auto& child : child_vec) {
                         range_vec.emplace_back(range_type({cst.lb(child), cst.rb(child)}));
@@ -232,7 +235,8 @@ public:
                         ++h_idx;
                     }
                 }
-                h[h_idx++] = 1;
+                if (!t_new_h_mapping)
+                    h[h_idx++] = 1;
                 last_io_id = node_io_id;
                 while (child_vec.size() > 1) {
                     s_push(child_vec.back());
@@ -302,12 +306,12 @@ public:
     }
 };
 
-template<typename t_csa, typename t_bv, typename t_sel, bool greedy_order>
-void construct(df_sada<t_csa, t_bv, t_sel, greedy_order>& idx,
+template<typename t_csa, typename t_bv, typename t_sel, bool greedy_order, bool new_h_mapping>
+void construct(df_sada<t_csa, t_bv, t_sel, greedy_order, new_h_mapping>& idx,
                const string& file,
                sdsl::cache_config& cc, uint8_t) {
     using namespace sdsl;
-    using df_sada_type = df_sada<t_csa, t_bv, t_sel, greedy_order>;
+    using df_sada_type = df_sada<t_csa, t_bv, t_sel, greedy_order, new_h_mapping>;
     using t_alphabet = typename df_sada_type::alphabet_category;
     using cst_type = typename df_sada_type::cst_type;
 

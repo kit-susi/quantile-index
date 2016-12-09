@@ -222,9 +222,10 @@ public:
         m_h_select_0.set_vector(&m_h);
         m_h_select_1.set_vector(&m_h);
         m_map_to_h = map_to_h_type(&m_h_select_1);
-        const auto key_w_and_p = (offset_encoding ?
+        auto key_w_and_p = (offset_encoding ?
                                   surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
                                  std::to_string(max_query_length);
+        key_w_and_p = key_w_and_p + "_q" + std::to_string(quantile);
         load_from_cache(m_k2treap, key_w_and_p, cc, true);
     }
 
@@ -299,9 +300,11 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
-    const auto key_w_and_p = (offset_encoding ?
+    auto key_w_and_p = (offset_encoding ?
                               surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
                              std::to_string(max_query_length);
+    key_w_and_p = key_w_and_p + "_q" + to_string(quantile);
+
     const auto key_p = offset_encoding ?
                        surf::KEY_P_G : surf::KEY_P;
     const auto key_dup = offset_encoding ?

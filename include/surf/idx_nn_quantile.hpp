@@ -105,7 +105,7 @@ private:
     // Naive fallback.
     void getTopK(uint64_t s, uint64_t e) {
         std::unordered_map<uint64_t, uint64_t> counts;
-        std::cerr << s << "---" << e << std::endl;
+        //std::cerr << s << "---" << e << std::endl;
         for (size_t i = s; i <= e; ++i) {
             uint64_t doc_id = sa_to_doc(i);
             if (counts.count(doc_id) == 0)
@@ -139,14 +139,14 @@ public:
                     m_h_select_1(sp+1),
                     m_h_select_1(ep+1) };
 
-                std::cerr << get<0>(h_range) << " " << get<1>(h_range) << std::endl;
+                //std::cerr << get<0>(h_range) << " " << get<1>(h_range) << std::endl;
                 if (!empty(h_range)) {
                     uint64_t interval_size = get<1>(h_range) + 1 - get<0>(h_range);
-                    std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
+                    //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
 
                     // interval_size > 1 handles the special case interval_size = quantile = k = 1
                     if (interval_size >= k*quantile && interval_size > 1) { // Use grid.
-                        std::cerr << "using grid" << std::endl;
+                        //std::cerr << "using grid" << std::endl;
                         uint64_t depth = end - begin;
 
                         // round up to succeeding sample
@@ -154,10 +154,10 @@ public:
                         // round down to preceding sample (border is exclusive!)
                         uint64_t to = m_quantile_filter_rank(get<1>(h_range)+1);
 
-                        std::cerr
-                            << "x range = " << get<0>(h_range) << " " << get<1>(h_range)
-                            << " q range = " << from << "-" << to
-                            << " depth range = 0-" << depth-1 << std::endl;
+                        //std::cerr
+                            //<< "x range = " << get<0>(h_range) << " " << get<1>(h_range)
+                            //<< " q range = " << from << "-" << to
+                            //<< " depth range = 0-" << depth-1 << std::endl;
 
                         if (from < to) {
                             --to;
@@ -169,7 +169,7 @@ public:
                             }
                         }
                     } else { // Naive fallback.
-                        std::cerr << "fallback" << std::endl;
+                        //std::cerr << "fallback" << std::endl;
                         getTopK(sp, ep);
                     }
                 }

@@ -7,6 +7,7 @@
 #include <set>
 #include <unordered_set>
 
+#include "btree/safe_btree_set.h"
 #include "sdsl/rrr_vector.hpp"
 #include "sdsl/suffix_trees.hpp"
 #include "sdsl/k2_treap.hpp"
@@ -293,6 +294,13 @@ public:
     }
 };
 
+using arrow = std::pair<uint64_t, uint64_t>;
+struct arrow_cmp {
+    bool operator()(const arrow& a, const arrow& b) const {
+        return a.first > b.first || (a.first==b.first && a.second > b.second);
+    }
+};
+
 template<typename t_csa,
          typename t_k2treap,
          int quantile,
@@ -511,45 +519,98 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         load_from_cache(P, key_p, cc);
         if (P.size() <30) cout << "P=" << P << endl;
 
-        std::vector<std::tuple<uint64_t, uint64_t>> cur_weights;
+        using timer = chrono::high_resolution_clock;
+        auto start = timer::now();
+
+        using arrow_set = btree::safe_btree_set<arrow, arrow_cmp>;
+        map<uint64_t, arrow_set*> arrows;
 
         // DFS traversal of CST
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
-            if (!cst.is_leaf(v)) {
-                if (it.visit() == 1) {
-                    // node visited the first time
-                    uint64_t start = h_select_1(v.i+1);
-                    uint64_t end = h_select_1(v.j+1)+1;
+            //cout << "node " << v.i << "-" << v.j << " visit=" << (int)it.visit() << endl;
+            bool leaf = cst.is_leaf(v);
+            if (!leaf && it.visit() == 2) {
+                // node visited the second time
+                auto depth = cst.depth(v);
 
-                    // TODO(niklasb) is this still correct?
-                    uint64_t weight_idx = start - v.i;
+                // Locate children in the arrows set (ordered by left node border)
+                auto first_child = arrows.lower_bound(v.i);
+                assert(first_child != arrows.end());
 
-                    uint64_t interval_size = end - start;
-                    uint64_t k = interval_size / quantile;
+                // Find child with maximum arrows. We are going to use it as
+                // the set of arrows for the current node.
+                arrow_set* cur = nullptr;
+                for (auto it = first_child; it != arrows.end(); ++it) {
+                    //cout << "  child=" << it->second.first.i <<"-" << it->second.first.j << endl;
+                    auto* a = it->second;
+                    if (!cur || (a && a->size() > cur->size()))
+                        cur = a;
+                }
+                assert(cur); // because we're not at a leaf
 
-                    if (k > 0) {
-                        auto depth = cst.depth(v);
-                        cur_weights.clear();
-                        for (uint64_t i = start; i < end; ++i) {
-                            auto valid = P[i] < depth;
-                            if (hrrr[i] == 1) { // singleton.
-                                if (valid) cur_weights.emplace_back(0, i);
-                            } else { // no singleton.
-                                if (valid) cur_weights.emplace_back(weights[weight_idx], i);
-                                ++weight_idx;
-                            }
-                        }
+                // Merge all other children.
+                for (auto it = first_child; it != arrows.end(); ++it) {
+                    arrow_set* a = it->second;
+                    if (a == cur) continue;
 
-                        k = min(k, cur_weights.size());
-                        std::nth_element(cur_weights.begin(), cur_weights.begin()+k, cur_weights.end(),
-                                std::greater<std::tuple<uint64_t, uint64_t>>());
-                        for (size_t i = 0; i < k; ++i)
-                            quantile_filter[get<1>(cur_weights[i])] = 1;
+                    for (auto arrow : (*a))
+                        if (P[arrow.second] < depth)
+                            cur->insert(arrow);
+                    delete a;
+                }
+                arrows.erase(next(first_child), arrows.end());
+                first_child->second = cur;
+
+                // Insert repetitions associated with current node
+                auto left_rb = cst.rb(cst.select_child(v, 1));
+                auto x = h_select_1(left_rb+1);
+                auto weight_idx = x - left_rb;
+                ++x;
+                while (x < bits && !hrrr[x]) {
+                    auto weight = weights[weight_idx];
+                    cur->insert(arrow(weight, x));
+                    ++weight_idx;
+                    ++x;
+                }
+
+                uint64_t start = h_select_1(v.i+1);
+                uint64_t end = h_select_1(v.j+1)+1;
+
+                uint64_t interval_size = end - start;
+                uint64_t k = interval_size / quantile;
+
+                // TODO(niklasb) instead of explicitly walking the tree to mark the
+                // quantiles, can we instead use order statistics and check if
+                // an arrow is in some top quantile as soon as we see it?
+                // The problem then would be that we couldn't do the deletions
+                // lazily, like we do now.
+                for (auto it = cur->begin(); k && it != cur->end();) {
+                    if (P[it->second] < depth) {
+                        quantile_filter[it->second] = 1;
+                        ++it;
+                        --k;
+                    } else {
+                        // Erase arrows fully contained in current subtree
+                        cur->erase(it++);
                     }
                 }
+            } else if (leaf && it.visit() == 1) {
+                auto x = h_select_1(v.i+1);
+                auto* cur = new arrow_set();
+                cur->insert(arrow(0, x));
+                arrows[v.i] = cur;
             }
         }
+        //cout << "insertions=" << insertions << " deletions=" << deletions << endl;
+
+        assert(arrows.size() == 1);
+        for (auto it : arrows) delete it.second;
+
+        uint64_t msecs = chrono::duration_cast<chrono::microseconds>(timer::now() - start).count();
+        cout << "quantile filtering took " << setprecision(2) << fixed
+            << 1.*msecs/1e6 << " seconds" << endl;
+
         size_t cnt_needed = 0;
         for (uint64_t i = 0; i < quantile_filter.size(); ++i) {
             if (quantile_filter[i]) {

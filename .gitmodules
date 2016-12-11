@@ -13,3 +13,6 @@
 [submodule "external/sdsl-lite/external/libdivsufsort"]
 	path = external/sdsl-lite/external/libdivsufsort
 	url = https://github.com/simongog/libdivsufsort.git
+[submodule "include/btree"]
+	path = include/btree
+	url = https://github.com/algorithm-ninja/cpp-btree/

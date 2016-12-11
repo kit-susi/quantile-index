@@ -526,11 +526,12 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         map<uint64_t, arrow_set*> arrows;
 
         // DFS traversal of CST
+        auto root = cst.root();
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
             //cout << "node " << v.i << "-" << v.j << " visit=" << (int)it.visit() << endl;
             bool leaf = cst.is_leaf(v);
-            if (!leaf && it.visit() == 2) {
+            if (!leaf && v != root && it.visit() == 2) {
                 // node visited the second time
                 auto depth = cst.depth(v);
 

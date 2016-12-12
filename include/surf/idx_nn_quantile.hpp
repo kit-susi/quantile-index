@@ -289,7 +289,9 @@ public:
         }
         std::cout << sdsl::size_in_bytes(m_h)
                   + sdsl::size_in_bytes(m_h_select_0)
-                  + sdsl::size_in_bytes(m_h_select_1) << ";"; // H
+                  + sdsl::size_in_bytes(m_h_select_1) 
+                  + sdsl::size_in_bytes(m_quantile_filter)
+                  + sdsl::size_in_bytes(m_quantile_filter_rank)<< ";"; // H
         std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
     }
 };
@@ -604,8 +606,6 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
             }
         }
         //cout << "insertions=" << insertions << " deletions=" << deletions << endl;
-
-        assert(arrows.size() == 1);
         for (auto it : arrows) delete it.second;
 
         uint64_t msecs = chrono::duration_cast<chrono::microseconds>(timer::now() - start).count();

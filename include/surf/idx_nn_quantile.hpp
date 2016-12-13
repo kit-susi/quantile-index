@@ -485,7 +485,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                 uint64_t d = wtd[sa_pos];
                 uint64_t idx = h_select_1(sa_pos+1);
                 //cout << "  singleton " << sa_pos << " " << idx << " " << depths[d].top() << endl;
-                P_buf[idx] = depths[d].top();
+		if (d < depths.size())
+			P_buf[idx] = depths[d].top();
             }
         }
         P_buf.close();
@@ -517,6 +518,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
         int_vector<> P;
         load_from_cache(P, key_p, cc);
+	std::cout << P.size() << endl;
         if (P.size() <30) cout << "P=" << P << endl;
 
         using timer = chrono::high_resolution_clock;

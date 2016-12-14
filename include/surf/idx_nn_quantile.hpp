@@ -140,7 +140,7 @@ public:
 
                 //std::cerr << get<0>(h_range) << " " << get<1>(h_range) << std::endl;
                 if (!empty(h_range)) {
-                    uint64_t interval_size = get<1>(h_range) + 1 - get<0>(h_range);
+                    uint64_t interval_size = ep - sp + 1;
                     //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
 
                     // interval_size > 1 handles the special case interval_size = quantile = k = 1
@@ -585,10 +585,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                     ++x;
                 }
 
-                uint64_t start = h_select_1(v.i+1);
-                uint64_t end = h_select_1(v.j+1)+1;
-
-                uint64_t interval_size = end - start;
+                uint64_t interval_size = v.j - v.i + 1;
                 uint64_t k = interval_size / quantile;
 
                 // TODO(niklasb) instead of explicitly walking the tree to mark the

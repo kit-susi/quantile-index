@@ -52,6 +52,9 @@ public:
     typedef t_doc_offset                               doc_offset_type;
     typedef typename t_doc_offset::select_1_type       doc_offset_select_type;
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
+
+    using qfilter_type = rrr_vector<>;
+
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
 
     static constexpr string QUANTILE_SUFFIX() {
@@ -73,8 +76,8 @@ private:
     map_to_h_type      m_map_to_h;
     topk_result_set    m_results;
 
-    rrr_vector<>       m_quantile_filter;
-    rrr_vector<>::rank_1_type m_quantile_filter_rank;
+    qfilter_type m_quantile_filter;
+    qfilter_type::rank_1_type m_quantile_filter_rank;
 
     sd_vector<> m_h_qfilter;
     sd_vector<>::select_1_type m_h_qfilter_select;
@@ -220,9 +223,9 @@ public:
         }
 
         load_from_cache(m_quantile_filter,
-                surf::KEY_QUANTILE_FILTER + QUANTILE_SUFFIX(), cc);
+                surf::KEY_QUANTILE_FILTER + QUANTILE_SUFFIX(), cc, true);
         load_from_cache(m_quantile_filter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + QUANTILE_SUFFIX(), cc);
+                surf::KEY_QUANTILE_FILTER_RANK + QUANTILE_SUFFIX(), cc, true);
         m_quantile_filter_rank.set_vector(&m_quantile_filter);
 
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true);
@@ -329,6 +332,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
     using timer = chrono::high_resolution_clock;
+    using qfilter_type = rrr_vector<>;
 
     assert(!offset_encoding);
 
@@ -504,7 +508,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
     }
 
     cout << "...quantile filter" << endl;
-    if (!cache_file_exists(surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
+    if (!cache_file_exists<qfilter_type>(
+                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
         // Compute quantile filter. 1 -> include arrow, 0 -> remove arrow.
         t_h hrrr;
         load_from_cache(hrrr, KEY_H_LEFT, cc, true);
@@ -643,25 +648,28 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         }
         cout << "total arrows: " << bits << " after filter: " << cnt_needed << endl;
 
-        rrr_vector<> qfilter(quantile_filter);
-        rrr_vector<>::rank_1_type qfilter_rank(&qfilter);
+        qfilter_type qfilter(quantile_filter);
+        qfilter_type::rank_1_type qfilter_rank(&qfilter);
 
         store_to_cache(qfilter,
-                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc);
+                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
         store_to_cache(qfilter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc);
+                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc, true);
     }
 
     cout << "...combine H mapping with quantile filter" << endl;
-    if (!cache_file_exists(surf::KEY_H_WITH_QFILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
+    if (!cache_file_exists<sd_vector<>>(
+                surf::KEY_H_WITH_QFILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
         // x'th bit should be set at position rank_qfilter(select1_H(x+1))
         t_h hrrr;
         load_from_cache(hrrr, KEY_H_LEFT, cc, true);
         const uint64_t bits =  hrrr.size() - 1;
-        bit_vector quantile_filter(bits, 0);
 
-        rrr_vector<> qfilter;
-        load_from_cache(qfilter, surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc);
+        qfilter_type qfilter;
+        load_from_cache(qfilter, surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
+
+        auto start = timer::now();
+
         assert(qfilter.size() == bits);
 
         vector<uint64_t> res;
@@ -678,10 +686,17 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
         sd_vector<> h_with_qfilter_sd(res.begin(), res.end());
         sd_vector<>::select_1_type h_with_qfilter_select(&h_with_qfilter_sd);
+
+        uint64_t msecs = chrono::duration_cast<chrono::microseconds>(
+                timer::now() - start).count();
+        cout << "step took " << setprecision(2) << fixed
+            << 1.*msecs/1e6 << " seconds" << endl;
+
         store_to_cache(h_with_qfilter_sd,
                 surf::KEY_H_WITH_QFILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
         store_to_cache(h_with_qfilter_select,
-                surf::KEY_H_WITH_QFILTER_SELECT + idx_type::QUANTILE_SUFFIX(), cc, true);
+                surf::KEY_H_WITH_QFILTER_SELECT + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
 
 #ifndef NDEBUG
         cout << "verifying correctness" << endl;
@@ -690,14 +705,13 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         load_from_cache(h_select_1, KEY_H_LEFT_SELECT_1, cc, true);
         h_select_1.set_vector(&hrrr);
 
-        rrr_vector<>::rank_1_type qfilter_rank;
-        load_from_cache(qfilter_rank, surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc);
+        qfilter_type::rank_1_type qfilter_rank;
+        load_from_cache(qfilter_rank,
+                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
         qfilter_rank.set_vector(&qfilter);
 
         for (size_t i = 0; i < rank_hrrr; ++i) {
-            assert(qfilter_rank(h_select_1(i+1)) == res[2*i]-2*i);
-            assert(qfilter_rank(h_select_1(i+1)+1) == res[2*i+1]-2*i-1);
-
             assert(qfilter_rank(h_select_1(i+1)) == h_with_qfilter_select(2*i+1)-2*i);
             assert(qfilter_rank(h_select_1(i+1)+1) == h_with_qfilter_select(2*i+2)-2*i-1);
         }
@@ -779,12 +793,12 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         load_from_cache(hrrr, surf::KEY_H_LEFT, cc, true);
         cout << "P_buf.size()=" << P_buf.size() << endl;
 
-        rrr_vector<> quantile_filter;
-        rrr_vector<>::rank_1_type qfilter_rank(&quantile_filter);
+        qfilter_type quantile_filter;
+        qfilter_type::rank_1_type qfilter_rank(&quantile_filter);
         load_from_cache(quantile_filter,
-                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc);
+                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
         load_from_cache(qfilter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc);
+                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc, true);
         qfilter_rank.set_vector(&quantile_filter);
 
         {

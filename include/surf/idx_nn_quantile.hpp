@@ -487,8 +487,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                 uint64_t d = wtd[sa_pos];
                 uint64_t idx = h_select_1(sa_pos+1);
                 //cout << "  singleton " << sa_pos << " " << idx << " " << depths[d].top() << endl;
-		if (d < depths.size())
-			P_buf[idx] = depths[d].top();
+                if (d < depths.size())
+                    P_buf[idx] = depths[d].top();
             }
         }
         P_buf.close();

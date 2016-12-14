@@ -287,7 +287,7 @@ public:
         }
         std::cout << sdsl::size_in_bytes(m_h)
                   + sdsl::size_in_bytes(m_h_select_0)
-                  + sdsl::size_in_bytes(m_h_select_1) 
+                  + sdsl::size_in_bytes(m_h_select_1)
                   + sdsl::size_in_bytes(m_quantile_filter)
                   + sdsl::size_in_bytes(m_quantile_filter_rank)<< ";"; // H
         std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
@@ -535,18 +535,27 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         using arrow_set = btree::safe_btree_set<arrow, arrow_cmp>;
         map<uint64_t, arrow_set*> arrows;
 
+        vector<cst_type::node_type> path;
+
+        int depth = 0;
+
         // DFS traversal of CST
-        auto root = cst.root();
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
-            //cout << "node " << v.i << "-" << v.j << " visit=" << (int)it.visit() << endl;
+
             bool leaf = cst.is_leaf(v);
-            if (!leaf && v != root && it.visit() == 2) {
+
+            if (!leaf)
+                depth += (it.visit() == 1) ? 1 : -1;
+
+            //cout << "node " << v.i << "-" << v.j
+                    //<< " visit=" << (int)it.visit() << " depth=" << depth << endl;
+            if (!leaf && depth > 0 && it.visit() == 2) {
                 // node visited the second time
                 auto depth = cst.depth(v);
 
                 // Locate children in the arrows set (ordered by left node border)
-                auto first_child = arrows.lower_bound(v.i);
+                auto first_child = arrows.find(v.i);
                 assert(first_child != arrows.end());
 
                 // Find child with maximum arrows. We are going to use it as
@@ -603,6 +612,13 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                         cur->erase(it++);
                     }
                 }
+
+                // We can delete arrows[v.i] here, if v is
+                // a child of the root node.
+                if (depth == 1) {
+                    delete cur;
+                    arrows.erase(v.i);
+                }
             } else if (leaf && it.visit() == 1) {
                 auto x = h_select_1(v.i+1);
                 auto* cur = new arrow_set();
@@ -610,8 +626,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                 arrows[v.i] = cur;
             }
         }
-        //cout << "insertions=" << insertions << " deletions=" << deletions << endl;
         for (auto it : arrows) delete it.second;
+        arrows.clear();
 
         uint64_t msecs = chrono::duration_cast<chrono::microseconds>(timer::now() - start).count();
         cout << "quantile filtering took " << setprecision(2) << fixed

@@ -207,6 +207,7 @@ if __name__ == '__main__':
                 try:
                     out = exe(cmd)
                 except Exception, e:
+                    print 'FAIL: Query program crashed'
                     sys.exit(1)
 
                 if args.q == 1:

@@ -66,6 +66,10 @@ const std::string KEY_MAXTF = "maxtf";
 const std::string KEY_MAXDOCLEN = "maxdoclen";
 const std::string KEY_QUANTILE_FILTER = "quantile_filter";
 const std::string KEY_QUANTILE_FILTER_RANK = "quantile_filter_rank";
+
+const std::string KEY_H_WITH_QFILTER = "h_qfilter";
+const std::string KEY_H_WITH_QFILTER_SELECT = "h_qfilter_select";
+
 const std::string KEY_TAILS = "tails";
 const std::string KEY_TAILS_RANK = "tails_rank";
 const std::string KEY_TAILS_SELECT = "tails_select";

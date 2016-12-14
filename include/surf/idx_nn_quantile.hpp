@@ -328,6 +328,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
     using idx_type = idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
+    using timer = chrono::high_resolution_clock;
 
     assert(!offset_encoding);
 
@@ -441,6 +442,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         vector<t_stack> depths(doc_cnt, t_stack(vector<uint32_t>(1, 0))); // doc_cnt stack for last depth
         uint64_t depth = 0;
 
+        auto start = timer::now();
+
         // empty string, first index in H mapping
         P_buf[0] = 0;
 
@@ -491,6 +494,12 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                     P_buf[idx] = depths[d].top();
             }
         }
+
+        uint64_t msecs =
+            chrono::duration_cast<chrono::microseconds>(timer::now() - start).count();
+        cout << "Computing P took " << setprecision(2) << fixed
+            << 1.*msecs/1e6 << " seconds" << endl;
+
         P_buf.close();
     }
 
@@ -520,10 +529,9 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
         int_vector<> P;
         load_from_cache(P, key_p, cc);
-	std::cout << P.size() << endl;
+        std::cout << "P.size()=" << P.size() << endl;
         if (P.size() <30) cout << "P=" << P << endl;
 
-        using timer = chrono::high_resolution_clock;
         auto start = timer::now();
 
         using arrow_set = btree::safe_btree_set<arrow, arrow_cmp>;

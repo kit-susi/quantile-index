@@ -135,38 +135,36 @@ public:
             //std::cerr << "sp ep = " << sp << " " << ep << std::endl;
             valid &= !only_match;
             if (valid) {
-                if (!empty(h_range)) {
-                    uint64_t interval_size = ep - sp + 1;
-                    //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
+                uint64_t interval_size = ep - sp + 1;
+                //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
 
-                    // interval_size > 1 handles the special case interval_size = quantile = k = 1
-                    if (interval_size >= k*quantile && interval_size > 1) { // Use grid.
-                        //std::cerr << "using grid" << std::endl;
-                        uint64_t depth = end - begin;
+                // interval_size > 1 handles the special case interval_size = quantile = k = 1
+                if (interval_size >= k*quantile && interval_size > 1) { // Use grid.
+                    //std::cerr << "using grid" << std::endl;
+                    uint64_t depth = end - begin;
 
-                        // round up to succeeding sample
-                        uint64_t from = m_h_qfilter_select(2*sp+1)-2*sp;
-                        // round down to preceding sample (border is exclusive!)
-                        uint64_t to = m_h_qfilter_select(2*ep+2)-2*ep-1;
+                    // round up to succeeding sample
+                    uint64_t from = m_h_qfilter_select(2*sp+1)-2*sp;
+                    // round down to preceding sample (border is exclusive!)
+                    uint64_t to = m_h_qfilter_select(2*ep+2)-2*ep-1;
 
-                        //std::cerr
-                            //<< "x range = " << get<0>(h_range) << " " << get<1>(h_range)
-                            //<< " q range = " << from << "-" << to
-                            //<< " depth range = 0-" << depth-1 << std::endl;
+                    //std::cerr
+                        //<< "x range = " << get<0>(h_range) << " " << get<1>(h_range)
+                        //<< " q range = " << from << "-" << to
+                        //<< " depth range = 0-" << depth-1 << std::endl;
 
-                        if (from < to) {
-                            --to;
-                            if (from <= to) {
-                                getTopK(k2_treap_ns::top_k(m_k2treap,
-                                            {from, 0},
-                                            {to, depth - 1}),
-                                        k);
-                            }
+                    if (from < to) {
+                        --to;
+                        if (from <= to) {
+                            getTopK(k2_treap_ns::top_k(m_k2treap,
+                                        {from, 0},
+                                        {to, depth - 1}),
+                                    k);
                         }
-                    } else { // Naive fallback.
-                        //std::cerr << "fallback" << std::endl;
-                        getTopK(sp, ep);
                     }
+                } else { // Naive fallback.
+                    //std::cerr << "fallback" << std::endl;
+                    getTopK(sp, ep);
                 }
             }
             return sort_topk_results<typename topk_interface::token_type>(&m_results);

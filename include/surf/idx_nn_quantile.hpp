@@ -109,8 +109,6 @@ private:
         //std::cerr << s << "---" << e << std::endl;
         for (size_t i = s; i <= e; ++i) {
             uint64_t doc_id = sa_to_doc(i);
-            if (counts.count(doc_id) == 0)
-                counts[doc_id] = 0;
             counts[doc_id]++;
         }
         // TODO only take top k.

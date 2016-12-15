@@ -79,9 +79,6 @@ private:
     qfilter_type m_quantile_filter;
     qfilter_type::rank_1_type m_quantile_filter_rank;
 
-    sd_vector<> m_h_qfilter;
-    sd_vector<>::select_1_type m_h_qfilter_select;
-
     // Using k2treap.
     void getTopK(k2treap_iterator k2_iter, uint64_t k) {
         while (k2_iter && k != 0) {
@@ -132,7 +129,7 @@ public:
         bool multi_occ = false, bool only_match = false) override {
             using std::get;
             m_results.clear();
-            uint64_t sp,ep;
+            uint64_t sp, ep;
             bool valid = backward_search(m_csa, 0, m_csa.size() - 1,
                                       begin, end, sp, ep) > 0;
             //std::cerr << "sp ep = " << sp << " " << ep << std::endl;
@@ -147,9 +144,9 @@ public:
                     uint64_t depth = end - begin;
 
                     // round up to succeeding sample
-                    uint64_t from = m_h_qfilter_select(2*sp+1)-2*sp;
-                    // round down to preceding sample (border is exclusive!)
-                    uint64_t to = m_h_qfilter_select(2*ep+2)-2*ep-1;
+                    uint64_t from = m_quantile_filter_rank(m_h_select_1(sp+1));
+                    // round down to preceding sample (`to` is exclusive!)
+                    uint64_t to = m_quantile_filter_rank(m_h_select_1(ep+1)+1);
 
                     //std::cerr
                         //<< "x range = " << get<0>(h_range) << " " << get<1>(h_range)
@@ -223,9 +220,9 @@ public:
         }
 
         load_from_cache(m_quantile_filter,
-                surf::KEY_QUANTILE_FILTER + QUANTILE_SUFFIX(), cc, true);
+                surf::KEY_FILTERED_QUANTILE_FILTER + QUANTILE_SUFFIX(), cc, true);
         load_from_cache(m_quantile_filter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + QUANTILE_SUFFIX(), cc, true);
+                surf::KEY_FILTERED_QUANTILE_FILTER_RANK + QUANTILE_SUFFIX(), cc, true);
         m_quantile_filter_rank.set_vector(&m_quantile_filter);
 
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true);
@@ -233,23 +230,21 @@ public:
         m_border_rank.set_vector(&m_border);
         load_from_cache(m_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
         m_border_select.set_vector(&m_border);
-        load_from_cache(m_h, surf::KEY_H_LEFT, cc, true);
-        load_from_cache(m_h_select_0, surf::KEY_H_LEFT_SELECT_0, cc, true);
-        load_from_cache(m_h_select_1, surf::KEY_H_LEFT_SELECT_1, cc, true);
+
+        load_from_cache(m_h, surf::KEY_FILTERED_H + QUANTILE_SUFFIX(), cc, true);
+        load_from_cache(m_h_select_0, surf::KEY_FILTERED_H_SELECT_0 + QUANTILE_SUFFIX(),
+                cc, true);
+        load_from_cache(m_h_select_1, surf::KEY_FILTERED_H_SELECT_1 + QUANTILE_SUFFIX(),
+                cc, true);
         m_h_select_0.set_vector(&m_h);
         m_h_select_1.set_vector(&m_h);
+
         m_map_to_h = map_to_h_type(&m_h_select_1);
 
         auto key_w_and_p =
             (offset_encoding ? surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
             std::to_string(max_query_length);
         load_from_cache(m_k2treap, key_w_and_p + QUANTILE_SUFFIX(), cc, true);
-
-        load_from_cache(m_h_qfilter,
-                surf::KEY_H_WITH_QFILTER + QUANTILE_SUFFIX(), cc, true);
-        load_from_cache(m_h_qfilter_select,
-                surf::KEY_H_WITH_QFILTER_SELECT + QUANTILE_SUFFIX(), cc, true);
-        m_h_qfilter_select.set_vector(&m_h_qfilter);
     }
 
     size_type serialize(std::ostream& out, structure_tree_node* v = nullptr,
@@ -273,8 +268,6 @@ public:
         written_bytes += m_k2treap.serialize(out, child, "W_AND_P");
         written_bytes += m_quantile_filter.serialize(out, child, "QUANTILE_FILTER");
         written_bytes += m_quantile_filter_rank.serialize(out, child, "QUANTILE_FILTER_RANK");
-        written_bytes += m_h_qfilter.serialize(out, child, "H_QFILTER");
-        written_bytes += m_h_qfilter_select.serialize(out, child, "H_QFILTER_SELECT");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -508,7 +501,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
     }
 
     cout << "...quantile filter" << endl;
-    if (!cache_file_exists<qfilter_type>(
+    if (!cache_file_exists<bit_vector>(
                 surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
         // Compute quantile filter. 1 -> include arrow, 0 -> remove arrow.
         t_h hrrr;
@@ -648,74 +641,60 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         }
         cout << "total arrows: " << bits << " after filter: " << cnt_needed << endl;
 
-        qfilter_type qfilter(quantile_filter);
-        qfilter_type::rank_1_type qfilter_rank(&qfilter);
-
-        store_to_cache(qfilter,
+        store_to_cache(quantile_filter,
                 surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
-        store_to_cache(qfilter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc, true);
     }
 
-    cout << "...combine H mapping with quantile filter" << endl;
-    if (!cache_file_exists<sd_vector<>>(
-                surf::KEY_H_WITH_QFILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
-        // x'th bit should be set at position rank_qfilter(select1_H(x+1))
+    cout << "...filtering H vector" << endl;
+    if (!cache_file_exists<qfilter_type>(surf::KEY_FILTERED_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
         t_h hrrr;
         load_from_cache(hrrr, KEY_H_LEFT, cc, true);
-        const uint64_t bits =  hrrr.size() - 1;
+        auto bits = hrrr.size() - 1;
 
-        qfilter_type qfilter;
-        load_from_cache(qfilter, surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
+        bit_vector qfilter;
+        load_from_cache(qfilter,
+                KEY_QUANTILE_FILTER  + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
 
-        auto start = timer::now();
-
-        assert(qfilter.size() == bits);
-
-        bit_vector res(3*bits + 1);
-
-        uint64_t rank_qfilter = 0, rank_hrrr = 0, cnt = 0;
+        bit_vector filtered_h(bits, 0);
+        bit_vector filtered_qfilter(bits, 0);
+        size_t j = 0;
         for (size_t i = 0; i < bits; ++i) {
             if (hrrr[i]) {
-                res[rank_qfilter + (cnt++)] = 1;
-                res[rank_qfilter + qfilter[i] + (cnt++)] = 1;
+                filtered_h[j] = 1;
+                filtered_qfilter[j] = qfilter[i];
+                ++j;
+            } else if (qfilter[i]) {
+                filtered_qfilter[j] = 1;
+                ++j;
             }
-            rank_qfilter += qfilter[i];
-            rank_hrrr += hrrr[i];
         }
+        filtered_h.resize(j);
+        filtered_qfilter.resize(j);
 
-        sd_vector<> h_with_qfilter_sd(res);
-        sd_vector<>::select_1_type h_with_qfilter_select(&h_with_qfilter_sd);
+        qfilter_type qfilter_filtered(filtered_qfilter);
+        qfilter_type::rank_1_type qfilter_filtered_rank(&qfilter_filtered);
 
-        uint64_t msecs = chrono::duration_cast<chrono::microseconds>(
-                timer::now() - start).count();
-        cout << "step took " << setprecision(2) << fixed
-            << 1.*msecs/1e6 << " seconds" << endl;
+        t_h h_filtered(filtered_h);
+        t_h_select_1 h_filtered_select_1(&h_filtered);
+        t_h_select_0 h_filtered_select_0(&h_filtered);
 
-        store_to_cache(h_with_qfilter_sd,
-                surf::KEY_H_WITH_QFILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
-        store_to_cache(h_with_qfilter_select,
-                surf::KEY_H_WITH_QFILTER_SELECT + idx_type::QUANTILE_SUFFIX(),
+        store_to_cache(h_filtered,
+                KEY_FILTERED_H + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
+        store_to_cache(h_filtered_select_1,
+                KEY_FILTERED_H_SELECT_1 + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
+        store_to_cache(h_filtered_select_0,
+                KEY_FILTERED_H_SELECT_0 + idx_type::QUANTILE_SUFFIX(),
                 cc, true);
 
-#ifndef NDEBUG
-        cout << "verifying correctness" << endl;
-        // verification
-        t_h_select_1 h_select_1;
-        load_from_cache(h_select_1, KEY_H_LEFT_SELECT_1, cc, true);
-        h_select_1.set_vector(&hrrr);
-
-        qfilter_type::rank_1_type qfilter_rank;
-        load_from_cache(qfilter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(),
+        store_to_cache(qfilter_filtered_rank,
+                KEY_FILTERED_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(),
                 cc, true);
-        qfilter_rank.set_vector(&qfilter);
-
-        for (size_t i = 0; i < rank_hrrr; ++i) {
-            assert(qfilter_rank(h_select_1(i+1)) == h_with_qfilter_select(2*i+1)-2*i);
-            assert(qfilter_rank(h_select_1(i+1)+1) == h_with_qfilter_select(2*i+2)-2*i-1);
-        }
-#endif
+        store_to_cache(qfilter_filtered,
+                KEY_FILTERED_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
     }
 
     if (offset_encoding) {
@@ -793,16 +772,14 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         load_from_cache(hrrr, surf::KEY_H_LEFT, cc, true);
         cout << "P_buf.size()=" << P_buf.size() << endl;
 
-        qfilter_type quantile_filter;
-        qfilter_type::rank_1_type qfilter_rank(&quantile_filter);
+        bit_vector quantile_filter;
         load_from_cache(quantile_filter,
                 surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
-        load_from_cache(qfilter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc, true);
-        qfilter_rank.set_vector(&quantile_filter);
 
         {
-            auto keep = qfilter_rank(quantile_filter.size());
+            size_t keep = 0;
+            for (size_t i = 0; i < quantile_filter.size(); ++i)
+                keep += quantile_filter[i];
             int_vector<> id_v(keep, 0, bits::hi(keep) + 1);
             util::set_to_id(id_v);
             cout << "x size = " << id_v.size() << endl;

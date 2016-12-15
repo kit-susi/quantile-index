@@ -8,6 +8,7 @@
 #include "surf/construct_max_doc_len.hpp"
 #include <sdsl/bit_vectors.hpp>
 #include <sdsl/suffix_trees.hpp>
+#include <chrono>
 #include <tuple>
 #include <string>
 #include <algorithm>
@@ -98,6 +99,7 @@ public:
      */
     df_sada(sdsl::cache_config& cc) {
         using namespace sdsl;
+        using timer = std::chrono::high_resolution_clock;
         auto key_h = t_new_h_mapping ? surf::KEY_H_LEFT : surf::KEY_H;
 
         auto event = memory_monitor::event("construct df_sada");
@@ -164,6 +166,8 @@ public:
         size_t h_idx = 0, dup_idx = 0;
         size_t last_io_id = 0;
         uint64_t max_depth = 0;
+
+        auto start = timer::now();
 
         using node_type = typename cst_type::node_type;
         using n_type = std::tuple<node_type, bool>;
@@ -265,6 +269,11 @@ public:
             std::cerr << "m_bv=" << m_bv << std::endl;
         }
         m_sel = select_type(&m_bv);
+
+        uint64_t msecs =
+            std::chrono::duration_cast<std::chrono::microseconds>(timer::now() - start).count();
+        std::cout << "Computing DF took " << std::setprecision(2) << std::fixed
+            << 1.*msecs/1e6 << " seconds" << std::endl;
     }
 
 

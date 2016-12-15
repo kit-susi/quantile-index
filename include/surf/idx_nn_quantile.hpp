@@ -52,6 +52,9 @@ public:
     typedef t_doc_offset                               doc_offset_type;
     typedef typename t_doc_offset::select_1_type       doc_offset_select_type;
     typedef map_to_dup_type<h_select_1_type>           map_to_h_type;
+
+    using qfilter_type = rrr_vector<>;
+
     using topk_interface = typename topk_index_by_alphabet<alphabet_category>::type;
 
     static constexpr string QUANTILE_SUFFIX() {
@@ -73,8 +76,8 @@ private:
     map_to_h_type      m_map_to_h;
     topk_result_set    m_results;
 
-    rrr_vector<>       m_quantile_filter;
-    rrr_vector<>::rank_1_type m_quantile_filter_rank;
+    qfilter_type m_quantile_filter;
+    qfilter_type::rank_1_type m_quantile_filter_rank;
 
     // Using k2treap.
     void getTopK(k2treap_iterator k2_iter, uint64_t k) {
@@ -109,8 +112,6 @@ private:
         //std::cerr << s << "---" << e << std::endl;
         for (size_t i = s; i <= e; ++i) {
             uint64_t doc_id = sa_to_doc(i);
-            if (counts.count(doc_id) == 0)
-                counts[doc_id] = 0;
             counts[doc_id]++;
         }
         // TODO only take top k.
@@ -128,51 +129,42 @@ public:
         bool multi_occ = false, bool only_match = false) override {
             using std::get;
             m_results.clear();
-            uint64_t sp,ep;
+            uint64_t sp, ep;
             bool valid = backward_search(m_csa, 0, m_csa.size() - 1,
                                       begin, end, sp, ep) > 0;
             //std::cerr << "sp ep = " << sp << " " << ep << std::endl;
             valid &= !only_match;
             if (valid) {
-                //TODO(niklasb) we should check which one is correct
-                //and use that in map_to_dup_type
-                range_type h_range {
-                    m_h_select_1(sp+1),
-                    m_h_select_1(ep+1) };
+                uint64_t interval_size = ep - sp + 1;
+                //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
 
-                //std::cerr << get<0>(h_range) << " " << get<1>(h_range) << std::endl;
-                if (!empty(h_range)) {
-                    uint64_t interval_size = get<1>(h_range) + 1 - get<0>(h_range);
-                    //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
+                // interval_size > 1 handles the special case interval_size = quantile = k = 1
+                if (interval_size >= k*quantile && interval_size > 1) { // Use grid.
+                    //std::cerr << "using grid" << std::endl;
+                    uint64_t depth = end - begin;
 
-                    // interval_size > 1 handles the special case interval_size = quantile = k = 1
-                    if (interval_size >= k*quantile && interval_size > 1) { // Use grid.
-                        //std::cerr << "using grid" << std::endl;
-                        uint64_t depth = end - begin;
+                    // round up to succeeding sample
+                    uint64_t from = m_quantile_filter_rank(m_h_select_1(sp+1));
+                    // round down to preceding sample (`to` is exclusive!)
+                    uint64_t to = m_quantile_filter_rank(m_h_select_1(ep+1)+1);
 
-                        // round up to succeeding sample
-                        uint64_t from = m_quantile_filter_rank(get<0>(h_range));
-                        // round down to preceding sample (border is exclusive!)
-                        uint64_t to = m_quantile_filter_rank(get<1>(h_range)+1);
+                    //std::cerr
+                        //<< "x range = " << get<0>(h_range) << " " << get<1>(h_range)
+                        //<< " q range = " << from << "-" << to
+                        //<< " depth range = 0-" << depth-1 << std::endl;
 
-                        //std::cerr
-                            //<< "x range = " << get<0>(h_range) << " " << get<1>(h_range)
-                            //<< " q range = " << from << "-" << to
-                            //<< " depth range = 0-" << depth-1 << std::endl;
-
-                        if (from < to) {
-                            --to;
-                            if (from <= to) {
-                                getTopK(k2_treap_ns::top_k(m_k2treap,
-                                            {from, 0},
-                                            {to, depth - 1}),
-                                        k);
-                            }
+                    if (from < to) {
+                        --to;
+                        if (from <= to) {
+                            getTopK(k2_treap_ns::top_k(m_k2treap,
+                                        {from, 0},
+                                        {to, depth - 1}),
+                                    k);
                         }
-                    } else { // Naive fallback.
-                        //std::cerr << "fallback" << std::endl;
-                        getTopK(sp, ep);
                     }
+                } else { // Naive fallback.
+                    //std::cerr << "fallback" << std::endl;
+                    getTopK(sp, ep);
                 }
             }
             return sort_topk_results<typename topk_interface::token_type>(&m_results);
@@ -228,9 +220,9 @@ public:
         }
 
         load_from_cache(m_quantile_filter,
-                surf::KEY_QUANTILE_FILTER + QUANTILE_SUFFIX(), cc);
+                surf::KEY_FILTERED_QUANTILE_FILTER + QUANTILE_SUFFIX(), cc, true);
         load_from_cache(m_quantile_filter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + QUANTILE_SUFFIX(), cc);
+                surf::KEY_FILTERED_QUANTILE_FILTER_RANK + QUANTILE_SUFFIX(), cc, true);
         m_quantile_filter_rank.set_vector(&m_quantile_filter);
 
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true);
@@ -238,11 +230,15 @@ public:
         m_border_rank.set_vector(&m_border);
         load_from_cache(m_border_select, surf::KEY_DOCBORDER_SELECT, cc, true);
         m_border_select.set_vector(&m_border);
-        load_from_cache(m_h, surf::KEY_H_LEFT, cc, true);
-        load_from_cache(m_h_select_0, surf::KEY_H_LEFT_SELECT_0, cc, true);
-        load_from_cache(m_h_select_1, surf::KEY_H_LEFT_SELECT_1, cc, true);
+
+        load_from_cache(m_h, surf::KEY_FILTERED_H + QUANTILE_SUFFIX(), cc, true);
+        load_from_cache(m_h_select_0, surf::KEY_FILTERED_H_SELECT_0 + QUANTILE_SUFFIX(),
+                cc, true);
+        load_from_cache(m_h_select_1, surf::KEY_FILTERED_H_SELECT_1 + QUANTILE_SUFFIX(),
+                cc, true);
         m_h_select_0.set_vector(&m_h);
         m_h_select_1.set_vector(&m_h);
+
         m_map_to_h = map_to_h_type(&m_h_select_1);
 
         auto key_w_and_p =
@@ -289,7 +285,7 @@ public:
         }
         std::cout << sdsl::size_in_bytes(m_h)
                   + sdsl::size_in_bytes(m_h_select_0)
-                  + sdsl::size_in_bytes(m_h_select_1) 
+                  + sdsl::size_in_bytes(m_h_select_1)
                   + sdsl::size_in_bytes(m_quantile_filter)
                   + sdsl::size_in_bytes(m_quantile_filter_rank)<< ";"; // H
         std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
@@ -328,6 +324,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
     using idx_type = idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_border, t_border_rank,
           t_border_select, t_h, t_h_select_0, t_h_select_1, offset_encoding, t_doc_offset>;
     using doc_offset_type = typename idx_type::doc_offset_type;
+    using timer = chrono::high_resolution_clock;
+    using qfilter_type = rrr_vector<>;
 
     assert(!offset_encoding);
 
@@ -441,6 +439,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         vector<t_stack> depths(doc_cnt, t_stack(vector<uint32_t>(1, 0))); // doc_cnt stack for last depth
         uint64_t depth = 0;
 
+        auto start = timer::now();
+
         // empty string, first index in H mapping
         P_buf[0] = 0;
 
@@ -491,11 +491,18 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                     P_buf[idx] = depths[d].top();
             }
         }
+
+        uint64_t msecs =
+            chrono::duration_cast<chrono::microseconds>(timer::now() - start).count();
+        cout << "Computing P took " << setprecision(2) << fixed
+            << 1.*msecs/1e6 << " seconds" << endl;
+
         P_buf.close();
     }
 
     cout << "...quantile filter" << endl;
-    if (!cache_file_exists(surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
+    if (!cache_file_exists<bit_vector>(
+                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
         // Compute quantile filter. 1 -> include arrow, 0 -> remove arrow.
         t_h hrrr;
         load_from_cache(hrrr, KEY_H_LEFT, cc, true);
@@ -520,27 +527,35 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
         int_vector<> P;
         load_from_cache(P, key_p, cc);
-	std::cout << P.size() << endl;
+        std::cout << "P.size()=" << P.size() << endl;
         if (P.size() <30) cout << "P=" << P << endl;
 
-        using timer = chrono::high_resolution_clock;
         auto start = timer::now();
 
         using arrow_set = btree::safe_btree_set<arrow, arrow_cmp>;
         map<uint64_t, arrow_set*> arrows;
 
+        vector<cst_type::node_type> path;
+
+        int depth = 0;
+
         // DFS traversal of CST
-        auto root = cst.root();
         for (auto it = cst.begin(); it != cst.end(); ++it) {
             auto v = *it; // get the node by dereferencing the iterator
-            //cout << "node " << v.i << "-" << v.j << " visit=" << (int)it.visit() << endl;
+
             bool leaf = cst.is_leaf(v);
-            if (!leaf && v != root && it.visit() == 2) {
+
+            if (!leaf)
+                depth += (it.visit() == 1) ? 1 : -1;
+
+            //cout << "node " << v.i << "-" << v.j
+                    //<< " visit=" << (int)it.visit() << " depth=" << depth << endl;
+            if (!leaf && depth > 0 && it.visit() == 2) {
                 // node visited the second time
                 auto depth = cst.depth(v);
 
                 // Locate children in the arrows set (ordered by left node border)
-                auto first_child = arrows.lower_bound(v.i);
+                auto first_child = arrows.find(v.i);
                 assert(first_child != arrows.end());
 
                 // Find child with maximum arrows. We are going to use it as
@@ -579,10 +594,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                     ++x;
                 }
 
-                uint64_t start = h_select_1(v.i+1);
-                uint64_t end = h_select_1(v.j+1)+1;
-
-                uint64_t interval_size = end - start;
+                uint64_t interval_size = v.j - v.i + 1;
                 uint64_t k = interval_size / quantile;
 
                 // TODO(niklasb) instead of explicitly walking the tree to mark the
@@ -600,6 +612,13 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                         cur->erase(it++);
                     }
                 }
+
+                // We can delete arrows[v.i] here, if v is
+                // a child of the root node.
+                if (depth == 1) {
+                    delete cur;
+                    arrows.erase(v.i);
+                }
             } else if (leaf && it.visit() == 1) {
                 auto x = h_select_1(v.i+1);
                 auto* cur = new arrow_set();
@@ -607,8 +626,8 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                 arrows[v.i] = cur;
             }
         }
-        //cout << "insertions=" << insertions << " deletions=" << deletions << endl;
         for (auto it : arrows) delete it.second;
+        arrows.clear();
 
         uint64_t msecs = chrono::duration_cast<chrono::microseconds>(timer::now() - start).count();
         cout << "quantile filtering took " << setprecision(2) << fixed
@@ -622,14 +641,62 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         }
         cout << "total arrows: " << bits << " after filter: " << cnt_needed << endl;
 
-        rrr_vector<> qfilter(quantile_filter);
-        rrr_vector<>::rank_1_type qfilter_rank(&qfilter);
-
-        store_to_cache(qfilter,
-                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc);
-        store_to_cache(qfilter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc);
+        store_to_cache(quantile_filter,
+                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
     }
+
+    cout << "...filtering H vector" << endl;
+    if (!cache_file_exists<qfilter_type>(surf::KEY_FILTERED_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc)) {
+        t_h hrrr;
+        load_from_cache(hrrr, KEY_H_LEFT, cc, true);
+        auto bits = hrrr.size() - 1;
+
+        bit_vector qfilter;
+        load_from_cache(qfilter,
+                KEY_QUANTILE_FILTER  + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
+
+        bit_vector filtered_h(bits, 0);
+        bit_vector filtered_qfilter(bits, 0);
+        size_t j = 0;
+        for (size_t i = 0; i < bits; ++i) {
+            if (hrrr[i]) {
+                filtered_h[j] = 1;
+                filtered_qfilter[j] = qfilter[i];
+                ++j;
+            } else if (qfilter[i]) {
+                filtered_qfilter[j] = 1;
+                ++j;
+            }
+        }
+        filtered_h.resize(j);
+        filtered_qfilter.resize(j);
+
+        qfilter_type qfilter_filtered(filtered_qfilter);
+        qfilter_type::rank_1_type qfilter_filtered_rank(&qfilter_filtered);
+
+        t_h h_filtered(filtered_h);
+        t_h_select_1 h_filtered_select_1(&h_filtered);
+        t_h_select_0 h_filtered_select_0(&h_filtered);
+
+        store_to_cache(h_filtered,
+                KEY_FILTERED_H + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
+        store_to_cache(h_filtered_select_1,
+                KEY_FILTERED_H_SELECT_1 + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
+        store_to_cache(h_filtered_select_0,
+                KEY_FILTERED_H_SELECT_0 + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
+
+        store_to_cache(qfilter_filtered_rank,
+                KEY_FILTERED_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
+        store_to_cache(qfilter_filtered,
+                KEY_FILTERED_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
+    }
+
     if (offset_encoding) {
         cout << "...DOC_OFFSET" << endl;
         if (!cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET, cc)) {
@@ -705,16 +772,14 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         load_from_cache(hrrr, surf::KEY_H_LEFT, cc, true);
         cout << "P_buf.size()=" << P_buf.size() << endl;
 
-        rrr_vector<> quantile_filter;
-        rrr_vector<>::rank_1_type qfilter_rank(&quantile_filter);
+        bit_vector quantile_filter;
         load_from_cache(quantile_filter,
-                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc);
-        load_from_cache(qfilter_rank,
-                surf::KEY_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(), cc);
-        qfilter_rank.set_vector(&quantile_filter);
+                surf::KEY_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(), cc, true);
 
         {
-            auto keep = qfilter_rank(quantile_filter.size());
+            size_t keep = 0;
+            for (size_t i = 0; i < quantile_filter.size(); ++i)
+                keep += quantile_filter[i];
             int_vector<> id_v(keep, 0, bits::hi(keep) + 1);
             util::set_to_id(id_v);
             cout << "x size = " << id_v.size() << endl;

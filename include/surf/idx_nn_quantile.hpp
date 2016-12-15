@@ -672,19 +672,19 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
         assert(qfilter.size() == bits);
 
-        vector<uint64_t> res;
+        bit_vector res(3*bits + 1);
 
-        uint64_t rank_qfilter = 0, rank_hrrr = 0;
+        uint64_t rank_qfilter = 0, rank_hrrr = 0, cnt = 0;
         for (size_t i = 0; i < bits; ++i) {
             if (hrrr[i]) {
-                res.push_back(rank_qfilter + res.size());
-                res.push_back(rank_qfilter + qfilter[i] + res.size());
+                res[rank_qfilter + (cnt++)] = 1;
+                res[rank_qfilter + qfilter[i] + (cnt++)] = 1;
             }
             rank_qfilter += qfilter[i];
             rank_hrrr += hrrr[i];
         }
 
-        sd_vector<> h_with_qfilter_sd(res.begin(), res.end());
+        sd_vector<> h_with_qfilter_sd(res);
         sd_vector<>::select_1_type h_with_qfilter_select(&h_with_qfilter_sd);
 
         uint64_t msecs = chrono::duration_cast<chrono::microseconds>(

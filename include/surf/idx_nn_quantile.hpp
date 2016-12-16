@@ -69,6 +69,7 @@ private:
     h_type             m_h;
     h_select_0_type    m_h_select_0;
     h_select_1_type    m_h_select_1;
+    typename h_type::rank_1_type m_h_rank; // TODO(julian): Actually build this.
     doc_offset_type    m_doc_offset; // offset representation of documents in node list
     doc_offset_select_type m_doc_offset_select;
     int_vector<>       m_doc; // documents in node lists
@@ -78,6 +79,7 @@ private:
 
     qfilter_type m_quantile_filter;
     qfilter_type::rank_1_type m_quantile_filter_rank;
+    qfilter_type::select_1_type m_quantile_filter_select;
 
     // Using k2treap.
     void getTopK(k2treap_iterator k2_iter, uint64_t k) {
@@ -86,16 +88,15 @@ private:
             uint64_t arrow_id = real(xy_w.first);
             uint64_t doc_id;
             if (offset_encoding) {
-                std::cerr << "Not implemented." << std::endl;
-                abort();
                 // TODO implement and test.
-                //uint64_t ones = m_h_rank(arrow_id);
-                //uint64_t zeros = arrow_id - ones;
-                //if (m_h[arrow_id]) { // singelton.
-                //   doc_id = sa_to_doc(ones);
-                //} else {
-                //    doc_id = get_doc(zeros, ones);
-                //}
+                uint64_t h_id = m_quantile_filter_select(arrow_id);
+                if (m_h[h_id]) { // Singleton.
+                    doc_id = sa_to_doc(m_h_rank(h_id));
+                } else{
+                    uint64_t ones = m_h_rank(h_id); // Offset id.
+                    uint64_t zeros = h_id - ones;
+                    doc_id = sa_to_doc(ones + m_doc_offset_select(zeros+2) - m_doc_offset_select(zeros+1));
+                }
             } else {
                 //std::cerr << "arrow_id = " << arrow_id << " #m_doc=" << m_doc.size() << endl;
                 doc_id = m_doc[arrow_id];
@@ -212,8 +213,8 @@ public:
         load_from_cache(m_csa, surf::KEY_CSA, cc, true);
         if (offset_encoding) {
             // TODO(niklasb) don't forget to use QUANTILE_SUFFIX if we ever fix this
-            load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET, cc, true);
-            load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT, cc, true);
+            load_from_cache(m_doc_offset, surf::KEY_DOC_OFFSET + QUANTILE_SUFFIX(), cc, true);
+            load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT + QUANTILE_SUFFIX(), cc, true);
             m_doc_offset_select.set_vector(&m_doc_offset);
         } else {
             load_from_cache(m_doc, surf::KEY_DUP + QUANTILE_SUFFIX(), cc);
@@ -326,8 +327,6 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
     using doc_offset_type = typename idx_type::doc_offset_type;
     using timer = chrono::high_resolution_clock;
     using qfilter_type = rrr_vector<>;
-
-    assert(!offset_encoding);
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
@@ -697,73 +696,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                 cc, true);
     }
 
-    if (offset_encoding) {
-        cout << "...DOC_OFFSET" << endl;
-        if (!cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET, cc)) {
-            int_vector<> darray, dup;
-            load_from_cache(darray, surf::KEY_DARRAY, cc);
-            load_from_cache(dup, key_dup, cc);
-            t_h hrrr;
-            load_from_cache(hrrr, surf::KEY_H_LEFT, cc, true);
-            t_h_select_1 h_select_1;
-            load_from_cache(h_select_1, surf::KEY_H_LEFT_SELECT_1, cc, true);
-            h_select_1.set_vector(&hrrr);
-
-            // Iterate through all nodes.
-            uint64_t start = 0;
-            uint64_t end;
-            // For each dup value offset o such that darray[nodeIndex+o+1] = dup.
-            vector<uint64_t> sa_offset;
-            uint64_t sd_n = 1;
-            for (uint64_t i = 1; i <= darray.size(); ++i) {
-                end = h_select_1(i) + 1 - i;
-                if (start < end) { // Dup lens
-                    vector<uint64_t> dup_set(dup.begin() + start, dup.begin() + end);
-                    uint64_t sa_pos = i;
-                    uint64_t j = 0;
-                    while (j < dup_set.size()) {
-                        if (dup_set[j] == darray[sa_pos]) {
-                            // Store offset.
-                            sa_offset.push_back(sa_pos - i);
-                            ++j;
-                        }
-                        if (sa_pos >= darray.size()) {
-                            cout << "ERROR: sa_pos is out of bounds." << endl;
-                            return;
-                        }
-                        ++sa_pos;
-                    }
-                    // sd_n computation.
-                    // encode first value + 1.
-                    sd_n += sa_offset[start] + 1; // +1 because zero deltas can't be encoded.
-                    for (size_t j = start + 1; j < end; ++j)
-                        sd_n += sa_offset[j] - sa_offset[j - 1]; // encode deltas.
-                }
-                start = end;
-            }
-            sdsl::bit_vector plain_bv(sd_n);
-            start = 0;
-            uint64_t cur_pos = 0;
-            for (uint64_t i = 1; i < darray.size(); ++i) {
-                end = h_select_1(i) + 1 - i;
-                if (start < end) { // Dup lens
-                    cur_pos += sa_offset[start] + 1;
-                    plain_bv[cur_pos] = 1;
-                    for (size_t j = start + 1; j < end; ++j) {
-                        cur_pos += sa_offset[j] - sa_offset[j - 1];
-                        plain_bv[cur_pos] = 1;
-                    }
-                }
-                start = end;
-            }
-            doc_offset_type doc_offset(plain_bv);
-            // Build select.
-            typename doc_offset_type::select_1_type doc_offset_select(&doc_offset);
-            store_to_cache(doc_offset, surf::KEY_DOC_OFFSET, cc, true);
-            store_to_cache(doc_offset_select, surf::KEY_DOC_OFFSET_SELECT, cc, true);
-        }
-    }
-    cout << "...W_AND_P" << endl;
+   cout << "...W_AND_P" << endl;
     if (!cache_file_exists<t_k2treap>(key_w_and_p, cc))
     {
         int_vector_buffer<> P_buf(cache_file_name(key_p, cc));
@@ -814,18 +747,53 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
             uint64_t dup_idx = 0;
             uint64_t idx = 0;
             uint64_t sa_id = 0;
+            vector<uint64_t> sa_offset;
             for (size_t i = 0; i < quantile_filter.size(); ++i) {
                 if (quantile_filter[i]) {
-                    dup[idx] = hrrr[i] ? darray[sa_id] : dup_nosingletons[dup_idx];
+                    // TODO(julian): Only encode deltas between arrows from the same locus.
+                    if (offset_encoding) { 
+                        if (!hrrr[i]) {
+                            assert(i == dup_idx + sa_id);
+                            uint64_t d = dup_nosingletons[dup_idx];
+                            uint64_t j = sa_id + 1;
+                            while (darray[j] != d) {
+                                j++;
+                            }
+                            assert(j - sa_id > 0); // 0 cannot be encoded.
+                            sa_offset.push_back(j - sa_id);
+                        }
+                    } else {
+                        dup[idx] = hrrr[i] ? darray[sa_id] : dup_nosingletons[dup_idx];
+                    }
                     W[idx] = hrrr[i] ? 1 : (W_nosingletons[dup_idx]+1);
                     ++idx;
                 }
-                if(hrrr[i]) sa_id++;
+                if(hrrr[i])  sa_id++;
                 else dup_idx++;
             }
-            dup.resize(idx);
             W.resize(idx);
-            store_to_cache(dup, key_dup + idx_type::QUANTILE_SUFFIX(), cc);
+            if (offset_encoding) {
+                cout << "offset encoding..." << endl;
+                // Compute number of bits.
+                uint64_t sd_n = 1; // add 1 at the beginning.
+                for (const auto delta : sa_offset) {
+                   sd_n += delta; 
+                }
+                bit_vector plain_bv(sd_n+1, 0);
+                plain_bv[0] = 1;
+                uint64_t pos = 1;
+                for (const auto delta: sa_offset) {
+                    pos += delta;
+                    plain_bv[pos] = 1;
+                }
+                doc_offset_type doc_offset(plain_bv);
+                typename doc_offset_type::select_1_type doc_offset_select(&doc_offset);
+                store_to_cache(doc_offset, surf::KEY_DOC_OFFSET + idx_type::QUANTILE_SUFFIX(), cc, true);
+                store_to_cache(doc_offset_select, surf::KEY_DOC_OFFSET_SELECT + idx_type::QUANTILE_SUFFIX(), cc, true);
+            } else {
+                dup.resize(idx);
+                store_to_cache(dup, key_dup + idx_type::QUANTILE_SUFFIX(), cc);
+            }
             cout << "w size = " << W.size() << endl;
             if (W.size() < 30) cout << "w=" << W << endl;
             //cout << "w(191)=" << W[191] << endl;

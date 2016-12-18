@@ -68,9 +68,11 @@ const std::string KEY_QUANTILE_FILTER = "quantile_filter";
 
 const std::string KEY_FILTERED_QUANTILE_FILTER = "filtered_qfilter";
 const std::string KEY_FILTERED_QUANTILE_FILTER_RANK = "filtered_qfilter_rank";
+const std::string KEY_FILTERED_QUANTILE_FILTER_SELECT = "filtered_qfilter_select";
 const std::string KEY_FILTERED_H = "filtered_h";
 const std::string KEY_FILTERED_H_SELECT_0 = "filtered_h_select_0";
 const std::string KEY_FILTERED_H_SELECT_1 = "filtered_h_select_1";
+const std::string KEY_FILTERED_H_RANK = "filtered_h_rank";
 
 const std::string KEY_TAILS = "tails";
 const std::string KEY_TAILS_RANK = "tails_rank";

@@ -69,7 +69,7 @@ private:
     h_type             m_h;
     h_select_0_type    m_h_select_0;
     h_select_1_type    m_h_select_1;
-    typename h_type::rank_1_type m_h_rank; // TODO(julian): Actually build this.
+    typename h_type::rank_1_type m_h_rank;
     doc_offset_type    m_doc_offset; // offset representation of documents in node list
     doc_offset_select_type m_doc_offset_select;
     int_vector<>       m_doc; // documents in node lists
@@ -88,8 +88,7 @@ private:
             uint64_t arrow_id = real(xy_w.first);
             uint64_t doc_id;
             if (offset_encoding) {
-                // TODO implement and test.
-                uint64_t h_id = m_quantile_filter_select(arrow_id);
+                uint64_t h_id = m_quantile_filter_select(arrow_id+1);
                 if (m_h[h_id]) { // Singleton.
                     doc_id = sa_to_doc(m_h_rank(h_id));
                 } else{
@@ -224,7 +223,10 @@ public:
                 surf::KEY_FILTERED_QUANTILE_FILTER + QUANTILE_SUFFIX(), cc, true);
         load_from_cache(m_quantile_filter_rank,
                 surf::KEY_FILTERED_QUANTILE_FILTER_RANK + QUANTILE_SUFFIX(), cc, true);
+        load_from_cache(m_quantile_filter_select,
+                surf::KEY_FILTERED_QUANTILE_FILTER_SELECT + QUANTILE_SUFFIX(), cc, true);
         m_quantile_filter_rank.set_vector(&m_quantile_filter);
+        m_quantile_filter_select.set_vector(&m_quantile_filter);
 
         load_from_cache(m_border, surf::KEY_DOCBORDER, cc, true);
         load_from_cache(m_border_rank, surf::KEY_DOCBORDER_RANK, cc, true);
@@ -237,8 +239,11 @@ public:
                 cc, true);
         load_from_cache(m_h_select_1, surf::KEY_FILTERED_H_SELECT_1 + QUANTILE_SUFFIX(),
                 cc, true);
+        load_from_cache(m_h_rank, surf::KEY_FILTERED_H_RANK + QUANTILE_SUFFIX(),
+                cc, true);
         m_h_select_0.set_vector(&m_h);
         m_h_select_1.set_vector(&m_h);
+        m_h_rank.set_vector(&m_h);
 
         m_map_to_h = map_to_h_type(&m_h_select_1);
 
@@ -266,6 +271,7 @@ public:
         written_bytes += m_h.serialize(out, child, "H");
         written_bytes += m_h_select_0.serialize(out, child, "H_SELECT_0");
         written_bytes += m_h_select_1.serialize(out, child, "H_SELECT_1");
+        written_bytes += m_h_rank.serialize(out, child, "H_RANK");
         written_bytes += m_k2treap.serialize(out, child, "W_AND_P");
         written_bytes += m_quantile_filter.serialize(out, child, "QUANTILE_FILTER");
         written_bytes += m_quantile_filter_rank.serialize(out, child, "QUANTILE_FILTER_RANK");
@@ -567,7 +573,6 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                         cur = a;
                 }
                 assert(cur); // because we're not at a leaf
-
                 // Merge all other children.
                 for (auto it = first_child; it != arrows.end(); ++it) {
                     arrow_set* a = it->second;
@@ -673,10 +678,12 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
         qfilter_type qfilter_filtered(filtered_qfilter);
         qfilter_type::rank_1_type qfilter_filtered_rank(&qfilter_filtered);
+        qfilter_type::select_1_type qfilter_filtered_select(&qfilter_filtered);
 
         t_h h_filtered(filtered_h);
         t_h_select_1 h_filtered_select_1(&h_filtered);
         t_h_select_0 h_filtered_select_0(&h_filtered);
+        typename t_h::rank_1_type h_filtered_rank(&h_filtered);
 
         store_to_cache(h_filtered,
                 KEY_FILTERED_H + idx_type::QUANTILE_SUFFIX(),
@@ -687,9 +694,15 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
         store_to_cache(h_filtered_select_0,
                 KEY_FILTERED_H_SELECT_0 + idx_type::QUANTILE_SUFFIX(),
                 cc, true);
+        store_to_cache(h_filtered_rank,
+                KEY_FILTERED_H_RANK + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
 
         store_to_cache(qfilter_filtered_rank,
                 KEY_FILTERED_QUANTILE_FILTER_RANK + idx_type::QUANTILE_SUFFIX(),
+                cc, true);
+        store_to_cache(qfilter_filtered_select,
+                KEY_FILTERED_QUANTILE_FILTER_SELECT + idx_type::QUANTILE_SUFFIX(),
                 cc, true);
         store_to_cache(qfilter_filtered,
                 KEY_FILTERED_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(),

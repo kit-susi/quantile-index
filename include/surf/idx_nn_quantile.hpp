@@ -94,9 +94,11 @@ private:
                 } else{
                     uint64_t ones = m_h_rank(h_id); // Offset id.
                     uint64_t zeros = h_id - ones;
-                    uint64_t start = m_h_select_1(ones) - ones;
-                    uint64_t p = ones + m_doc_offset_select(zeros+2) - m_doc_offset_select(start+1);
-                    doc_id = sa_to_doc(p-2);
+                    uint64_t zeros_start = m_h_select_1(ones) - ones;
+                    assert(zeros_start < zeros);
+                    uint64_t p = ones + 
+                        m_doc_offset_select(zeros+2) - m_doc_offset_select(zeros_start+2);
+                    doc_id = sa_to_doc(p-1);
                 }
             } else {
                 //std::cerr << "arrow_id = " << arrow_id << " #m_doc=" << m_doc.size() << endl;

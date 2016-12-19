@@ -161,6 +161,11 @@ public:
         t_wtd wtd;
         load_from_cache(wtd, surf::KEY_WTD, cc, true);
 
+        // For greedy reordering.
+        uint64_t invalid_id = -1;
+        std::vector<uint64_t> cur_dup_id(wtd.sigma, invalid_id);
+        uint64_t cur_dup_size = 0;
+
         // construct the bv
         bit_vector h(2 * D.size(), 0);
         size_t h_idx = 0, dup_idx = 0;
@@ -218,17 +223,20 @@ public:
                         // Build set.
                         std::unordered_map<uint64_t, uint64_t> dup_set;
                         for (size_t i = 0; i < dups.size(); ++i) {
-                            dup_set[dups[i].first] = i;
+                            cur_dup_id[dups[i].first] = i;
+                            cur_dup_size++;
                         }
                         // Make order.
-                        auto ordered_dups(dups);
-                        ordered_dups.resize(0); ordered_dups.reserve(dups.size());
-                        while (!dup_set.empty()) {
-                            auto it = dup_set.find(D[sa_pos]);
-                            if (it != dup_set.end()) {
+                        while (cur_dup_size != 0) {
+                            uint64_t dup_id = cur_dup_id[D[sa_pos]];
+                            cur_dup_id[D[sa_pos]] = invalid_id;
+                            if (dup_id != invalid_id) {
                                 // Insert found element next.
-                                ordered_dups.push_back(dups[it->second]);
-                                dup_set.erase(it);
+                                cur_dup_size--;
+                                dup_buf[dup_idx] = dups[dup_id].first;
+                                weight_buf[dup_idx] = dups[dup_id].second - 1;
+                                ++dup_idx;
+                                ++h_idx;
                             }
                             if (sa_pos >= D.size()) {
                                 cout << "ERROR: sa_pos is out of bounds." << endl;
@@ -236,13 +244,13 @@ public:
                             }
                             ++sa_pos;
                         }
-                        dups = ordered_dups;
-                    }
-                    for (const auto& duplicate : dups) {
-                        dup_buf[dup_idx] = duplicate.first;
-                        weight_buf[dup_idx] = duplicate.second - 1;
-                        ++dup_idx;
-                        ++h_idx;
+                    } else {
+                        for (const auto& duplicate : dups) {
+                            dup_buf[dup_idx] = duplicate.first;
+                            weight_buf[dup_idx] = duplicate.second - 1;
+                            ++dup_idx;
+                            ++h_idx;
+                        }
                     }
                 }
                 if (!t_new_h_mapping)

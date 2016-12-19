@@ -94,7 +94,9 @@ private:
                 } else{
                     uint64_t ones = m_h_rank(h_id); // Offset id.
                     uint64_t zeros = h_id - ones;
-                    doc_id = sa_to_doc(ones + m_doc_offset_select(zeros+2) - m_doc_offset_select(zeros+1));
+                    uint64_t start = m_h_select_1(ones) - ones;
+                    uint64_t p = ones + m_doc_offset_select(zeros+2) - m_doc_offset_select(start+1);
+                    doc_id = sa_to_doc(p-2);
                 }
             } else {
                 //std::cerr << "arrow_id = " << arrow_id << " #m_doc=" << m_doc.size() << endl;
@@ -760,20 +762,29 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
             uint64_t dup_idx = 0;
             uint64_t idx = 0;
             uint64_t sa_id = 0;
+            uint64_t last_sa_id = -1;
+            uint64_t last_val = 0;
             vector<uint64_t> sa_offset;
             for (size_t i = 0; i < quantile_filter.size(); ++i) {
                 if (quantile_filter[i]) {
-                    // TODO(julian): Only encode deltas between arrows from the same locus.
                     if (offset_encoding) { 
                         if (!hrrr[i]) {
                             assert(i == dup_idx + sa_id);
                             uint64_t d = dup_nosingletons[dup_idx];
-                            uint64_t j = sa_id + 1;
+                            uint64_t j = sa_id;
                             while (darray[j] != d) {
                                 j++;
                             }
-                            assert(j - sa_id > 0); // 0 cannot be encoded.
-                            sa_offset.push_back(j - sa_id);
+                            if (last_sa_id == sa_id) {
+                                //assert(sa_offset[sa_offset.size() -1] < j - sa_id);
+                                assert(j > last_val);
+                                sa_offset.push_back(j - last_val);
+                            } else {
+                                // + 1 because 0 cannot be encoded.
+                                sa_offset.push_back(j - sa_id + 1);
+                            }
+                            last_val = j;
+                            last_sa_id = sa_id;
                         }
                     } else {
                         dup[idx] = hrrr[i] ? darray[sa_id] : dup_nosingletons[dup_idx];
@@ -781,8 +792,9 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                     W[idx] = hrrr[i] ? 1 : (W_nosingletons[dup_idx]+1);
                     ++idx;
                 }
-                if(hrrr[i])  sa_id++;
-                else dup_idx++;
+                if(hrrr[i])  {
+                    sa_id++;
+                } else dup_idx++;
             }
             W.resize(idx);
             if (offset_encoding) {

@@ -230,8 +230,10 @@ public:
                                 ordered_dups.push_back(dups[it->second]);
                                 dup_set.erase(it);
                             }
-                            if (sa_pos >= D.size())
+                            if (sa_pos >= D.size()) {
                                 cout << "ERROR: sa_pos is out of bounds." << endl;
+                                abort();
+                            }
                             ++sa_pos;
                         }
                         dups = ordered_dups;

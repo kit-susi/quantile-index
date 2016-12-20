@@ -13,3 +13,11 @@ for CONFIG in $TXT_CONFIGS
 do
     build/release/surf_index-$CONFIG -c "$coll"
 done
+
+set +x
+# Output sizes
+for CONFIG in $TXT_CONFIGS
+do 
+    echo $CONFIG
+    build/release/surf_index-$CONFIG -c "$coll" -m m | tail -n1
+done

@@ -306,8 +306,8 @@ public:
         std::cout << sdsl::size_in_bytes(m_h)
                   + sdsl::size_in_bytes(m_h_select_0)
                   + sdsl::size_in_bytes(m_h_select_1) << ";"; // H
-        std::cout << sdsl::size_in_bytes(m_rmqc) << ";";  // RMQ
-        std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
+        std::cout << sdsl::size_in_bytes(m_rmqc)
+                  + sdsl::size_in_bytes(m_k2treap) << std::endl;  // rmq + k2treap
     }
 };
 

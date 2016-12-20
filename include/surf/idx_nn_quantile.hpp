@@ -279,6 +279,7 @@ public:
         written_bytes += m_k2treap.serialize(out, child, "W_AND_P");
         written_bytes += m_quantile_filter.serialize(out, child, "QUANTILE_FILTER");
         written_bytes += m_quantile_filter_rank.serialize(out, child, "QUANTILE_FILTER_RANK");
+        written_bytes += m_quantile_filter_select.serialize(out, child, "QUANTILE_FILTER_SELECT");
         structure_tree::add_size(child, written_bytes);
         return written_bytes;
     }
@@ -297,8 +298,10 @@ public:
         std::cout << sdsl::size_in_bytes(m_h)
                   + sdsl::size_in_bytes(m_h_select_0)
                   + sdsl::size_in_bytes(m_h_select_1)
+                  + sdsl::size_in_bytes(m_h_rank)
                   + sdsl::size_in_bytes(m_quantile_filter)
-                  + sdsl::size_in_bytes(m_quantile_filter_rank)<< ";"; // H
+                  + sdsl::size_in_bytes(m_quantile_filter_rank)
+                  + sdsl::size_in_bytes(m_quantile_filter_select)<< ";"; // H
         std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
     }
 };

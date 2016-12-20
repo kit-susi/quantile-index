@@ -220,7 +220,7 @@ public:
             load_from_cache(m_doc_offset_select, surf::KEY_DOC_OFFSET_SELECT + QUANTILE_SUFFIX(), cc, true);
             m_doc_offset_select.set_vector(&m_doc_offset);
         } else {
-            load_from_cache(m_doc, surf::KEY_DUP + QUANTILE_SUFFIX(), cc);
+            load_from_cache(m_doc, surf::KEY_DUP_G + QUANTILE_SUFFIX(), cc);
         }
 
         load_from_cache(m_quantile_filter,
@@ -251,9 +251,7 @@ public:
 
         m_map_to_h = map_to_h_type(&m_h_select_1);
 
-        auto key_w_and_p =
-            (offset_encoding ? surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
-            std::to_string(max_query_length);
+        auto key_w_and_p = surf::KEY_W_AND_P_G;
         load_from_cache(m_k2treap, key_w_and_p + QUANTILE_SUFFIX(), cc, true);
     }
 
@@ -343,19 +341,11 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
-    auto key_w_and_p = (offset_encoding ?
-                              surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) +
-                             std::to_string(max_query_length);
-    key_w_and_p += idx_type::QUANTILE_SUFFIX();
-
-    const auto key_p = offset_encoding ?
-                       surf::KEY_P_QUANTILE_G : surf::KEY_P_QUANTILE;
-    const auto key_dup = offset_encoding ?
-                         surf::KEY_DUP_G : surf::KEY_DUP;
-    const auto key_weights = offset_encoding ?
-                             surf::KEY_WEIGHTS_G : surf::KEY_WEIGHTS;
-    const auto key_df = offset_encoding ?
-                        surf::KEY_SADADF_G : surf::KEY_SADADF;
+    auto key_w_and_p = (offset_encoding ? surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) + idx_type::QUANTILE_SUFFIX();
+    const auto key_p = surf::KEY_P_QUANTILE_G + idx_type::QUANTILE_SUFFIX();
+    const auto key_dup = surf::KEY_DUP_G;
+    const auto key_weights = surf::KEY_WEIGHTS_G;
+    const auto key_df = surf::KEY_SADADF_G;
 
     cout << "...CSA" << endl; // CSA to get the lex. range
     if (!cache_file_exists<t_csa>(surf::KEY_CSA, cc))

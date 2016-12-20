@@ -346,7 +346,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
     key_w_and_p += idx_type::QUANTILE_SUFFIX();
 
     const auto key_p = offset_encoding ?
-                       surf::KEY_P_G : surf::KEY_P;
+                       surf::KEY_P_QUANTILE_G : surf::KEY_P_QUANTILE;
     const auto key_dup = offset_encoding ?
                          surf::KEY_DUP_G : surf::KEY_DUP;
     const auto key_weights = offset_encoding ?

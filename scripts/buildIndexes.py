@@ -18,17 +18,24 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('-c', dest='collection', required=True, metavar='DIRECTORY',
             help='Input collection')
-    p.add_argument('-b', dest='build_dir', default='build/debug',
-            help='Build directory (default: build/debug)')
+    p.add_argument('-b', dest='build_dir', default='build/release',
+            help='Build directory (default: build/release)')
     p.add_argument('--rebuild', default=False, action='store_true',
             help='Rebuilds all executables')
     args = p.parse_args()
-
+ 
     if args.rebuild:
         for s in sampling:
             for q in quantiles:
                 build_executable(s, q)
+
     print "Done building all executables"
     for s in sampling:
         for q in quantiles:
             build_index(s, q, args.collection, args.build_dir)
+    configs = [config(s,q) for s in sampling for q in quantiles]
+
+    print "Comparing indizes"
+    command = './scripts/compare.py %s -c %s -b %s --no_multi_occ -q 10000 -k 10 -n 4  -r 1' % (' '.join(configs), args.collection, args.build_dir)
+    print "Running command: ", command
+    os.system(command)

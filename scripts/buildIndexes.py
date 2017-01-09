@@ -10,6 +10,7 @@ def config(s,q):
     return 'IDX_NN_QUANTILE_LG_%d_%d' % (s, q)
 def build_executable(s, q):
     os.system('./scripts/build_config.sh -d %s' % config(s, q))
+    os.system('./scripts/build_config.sh %s' % config(s, q))
 
 def build_index(s, q, c, build_dir):
     print 'Building index with sampling %d and quantile %d' % (s,q)

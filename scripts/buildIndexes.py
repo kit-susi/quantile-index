@@ -44,6 +44,12 @@ def printIndexSpeed(configs, collection, build_dir):
     proc = subprocess.Popen(command, stdout=subprocess.PIPE)
     output(proc.communicate()[0])
 
+def check_results(configs, collection, build_dir):
+    print "Checking results"
+    command = ['./scripts/compare.py'] + configs + ['-c', collection, '-b', build_dir, '--no_multi_occ', '-q 1', '-k 10', '-n 4', '-r 10']
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+    print proc.communicate()[0]
+
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('-c', dest='collection', required=True, metavar='DIRECTORY',
@@ -52,23 +58,28 @@ if __name__ == '__main__':
             help='Build directory (default: build/release)')
     p.add_argument('--rebuild', default=False, action='store_true',
             help='Rebuilds all executables')
+    p.add_argument('--check', default=False, action='store_true',
+            help='Only check if results all match.')
     args = p.parse_args()
  
     configs = [config(s,q) for s in sampling for q in quantiles]
     if args.rebuild:
 	build_executable(configs)
 
-    print "Done building all executables"
-    # Build first index.
-    build_index(sampling[0], quantiles[0], args.collection, args.build_dir)
-    # Build all samplings in parallel.
-    run_parallel([Process(target=build_index, args=(s, quantiles[0], args.collection, args.build_dir)) for s in sampling])
-    # Build all quantiles in parallel.
-    run_parallel([Process(target=build_index, args=(sampling[0], q, args.collection, args.build_dir)) for q in quantiles])
+    if args.check:
+        check_results(configs, args.collection, args.build_dir)
+    else:
+        print "Done building all executables"
+        # Build first index.
+        build_index(sampling[0], quantiles[0], args.collection, args.build_dir)
+        # Build all samplings in parallel.
+        run_parallel([Process(target=build_index, args=(s, quantiles[0], args.collection, args.build_dir)) for s in sampling])
+        # Build all quantiles in parallel.
+        run_parallel([Process(target=build_index, args=(sampling[0], q, args.collection, args.build_dir)) for q in quantiles])
 
-    print "Index sizes" 
-    printIndexSizes(configs, args.collection, args.build_dir)
+        print "Index sizes" 
+        printIndexSizes(configs, args.collection, args.build_dir)
 
-    print "Comparing indizes"
-    printIndexSpeed(configs, args.collection, args.build_dir)
+        print "Comparing indizes"
+        printIndexSpeed(configs, args.collection, args.build_dir)
 

@@ -27,10 +27,10 @@ set +x
 echo "Building $@"
 for target in $@; do
   set -x
-  make -j16 $target &
+  make -j16 $target
   set +x
 done
 
-for job in `jobs -p`; do
-  wait $job
-done
+#for job in `jobs -p`; do
+  #wait $job
+#done

@@ -12,16 +12,18 @@ def output(s):
     output_file.write(s + "\n")
     output_file.flush()
 
-def config(s,q):
+def quantile_config(s, q):
     return 'IDX_NN_QUANTILE_LG_%d_%d' % (s, q)
+def nn_config(s):
+    return 'IDX_NN_%d' % s
 
 def build_executable(configs):
     os.system('./scripts/build_config.sh -d %s' % ' '.join(configs))
     os.system('./scripts/build_config.sh %s' % ' '.join(configs))
 
-def build_index(s, q, c, build_dir):
+def build_index(build_dir, config, c):
     print 'Building index with sampling %d and quantile %d' % (s,q)
-    os.system('./%s/surf_index-%s -c %s' % (build_dir, config(s, q), c))
+    os.system('./%s/surf_index-%s -c %s' % (build_dir, config, c))
 
 def run_sequential(processes):
     for p in processes:
@@ -67,7 +69,9 @@ if __name__ == '__main__':
             help='Only check if results all match.')
     args = p.parse_args()
  
-    configs = [config(s,q) for s in sampling for q in quantiles]
+    quantile_configs = [quantile_config(s,q) for s in sampling for q in quantiles]
+    nn_configs = [nn_config(s) for s in sampling]
+    configs = quantile_configs + nn_configs
     if args.rebuild:
 	build_executable(configs)
 
@@ -75,16 +79,10 @@ if __name__ == '__main__':
         check_results(configs, args.collection, args.build_dir)
     else:
         print "Done building all executables"
-        # Build first index.
-        build_index(sampling[0], quantiles[0], args.collection, args.build_dir)
-        # Build all samplings in parallel.
-        run_sequential([Process(target=build_index, args=(s, quantiles[0], args.collection, args.build_dir)) for s in sampling])
-        # Build all quantiles in parallel.
-        run_sequential([Process(target=build_index, args=(sampling[0], q, args.collection, args.build_dir)) for q in quantiles])
+        run_sequential([Process(target=build_index, args=(args.build_dir, config, args.collection)) for config in configs])
 
         print "Index sizes" 
-        printIndexSizes(configs, args.collection, args.build_dir)
+        printIndexSizes(configs , args.collection, args.build_dir)
 
         print "Comparing indizes"
         printIndexSpeed(configs, args.collection, args.build_dir)
-

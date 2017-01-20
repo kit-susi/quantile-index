@@ -23,6 +23,11 @@ def build_index(s, q, c, build_dir):
     print 'Building index with sampling %d and quantile %d' % (s,q)
     os.system('./%s/surf_index-%s -c %s' % (build_dir, config(s, q), c))
 
+def run_sequential(processes):
+    for p in processes:
+        p.start()
+        p.join()
+
 def run_parallel(processes):
     for p in processes:
         p.start()
@@ -73,9 +78,9 @@ if __name__ == '__main__':
         # Build first index.
         build_index(sampling[0], quantiles[0], args.collection, args.build_dir)
         # Build all samplings in parallel.
-        run_parallel([Process(target=build_index, args=(s, quantiles[0], args.collection, args.build_dir)) for s in sampling])
+        run_sequential([Process(target=build_index, args=(s, quantiles[0], args.collection, args.build_dir)) for s in sampling])
         # Build all quantiles in parallel.
-        run_parallel([Process(target=build_index, args=(sampling[0], q, args.collection, args.build_dir)) for q in quantiles])
+        run_sequential([Process(target=build_index, args=(sampling[0], q, args.collection, args.build_dir)) for q in quantiles])
 
         print "Index sizes" 
         printIndexSizes(configs, args.collection, args.build_dir)

@@ -16,6 +16,8 @@ def quantile_config(s, q):
     return 'IDX_NN_QUANTILE_LG_%d_%d' % (s, q)
 def nn_config(s):
     return 'IDX_NN_%d' % s
+def nn_lg_config(s):
+    return 'IDX_NN_LG_%d' % s
 
 def build_executable(configs):
     os.system('./scripts/build_config.sh -d %s' % ' '.join(configs))
@@ -71,7 +73,8 @@ if __name__ == '__main__':
  
     quantile_configs = [quantile_config(s,q) for s in sampling for q in quantiles]
     nn_configs = [nn_config(s) for s in sampling]
-    configs = quantile_configs + nn_configs
+    nn_lg_configs = [nn_lg_config(s) for s in sampling]
+    configs = quantile_configs + nn_configs + nn_lg_configs
     if args.rebuild:
 	build_executable(configs)
 

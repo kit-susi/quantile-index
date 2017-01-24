@@ -14,7 +14,7 @@ using namespace std;
 
 typedef struct cmdargs {
     std::string collection_dir;
-    size_t pat_len;
+    size_t pat_len_lo, pat_len_hi;
     size_t pat_cnt;
     size_t min_sampling;
     size_t seed;
@@ -25,10 +25,11 @@ typedef struct cmdargs {
 void
 usage(char* program)
 {
-    printf("%s -c <collection directory> -m\n", program);
+    printf("%s -c <collection directory> -a <A> -b <B> -x <X>\n", program);
     printf("where\n");
     printf("  -c <collection directory>  : the directory the collection is stored.\n");
-    printf("  -m <pattern length>        : the  pattern length.\n");
+    printf("  -a <pattern length>        : the min pattern length.\n");
+    printf("  -b <pattern length>        : the max pattern length.\n");
     printf("  -x <number of patterns>    : generate x distinct patterns.\n");
     printf("  -o <occurences>            : only return ngrams that are sampled at least once each X samples. 0 = disable (assertion o >= n)\n");
     printf("  -n <ngram samples>         : how many ngrams to sample if -o is given\n");
@@ -42,7 +43,8 @@ parse_args(int argc, char* const argv[])
     cmdargs_t args;
     int op;
     args.collection_dir = "";
-    args.pat_len = 0;
+    args.pat_len_lo = 0;
+    args.pat_len_hi = 0;
     args.pat_cnt = 0;
     args.ngram_samples = 1 << 13;
     args.min_sampling = 0;
@@ -52,7 +54,7 @@ parse_args(int argc, char* const argv[])
     srand(chrono::duration_cast<chrono::microseconds>(now.time_since_epoch()).count());
     args.seed = rand();
 
-    while ((op = getopt(argc, argv, "ic:m:x:o:s:n:")) != -1) {
+    while ((op = getopt(argc, argv, "ic:a:b:x:o:s:n:")) != -1) {
         switch (op) {
             case 'i':
                 args.int_collection = true;
@@ -60,8 +62,11 @@ parse_args(int argc, char* const argv[])
             case 'c':
                 args.collection_dir = optarg;
                 break;
-            case 'm':
-                args.pat_len = std::stoull(std::string(optarg));
+            case 'a':
+                args.pat_len_lo = std::stoull(std::string(optarg));
+                break;
+            case 'b':
+                args.pat_len_hi = std::stoull(std::string(optarg));
                 break;
             case 'x':
                 args.pat_cnt = std::stoull(std::string(optarg));
@@ -80,11 +85,16 @@ parse_args(int argc, char* const argv[])
                 usage(argv[0]);
         }
     }
-    if (args.collection_dir == "" || args.pat_len == 0 || args.pat_cnt == 0) {
+    if (args.pat_len_hi == 0)
+        args.pat_len_hi = args.pat_len_lo;
+    if (args.collection_dir == "" || args.pat_len_lo == 0 || args.pat_cnt == 0) {
         std::cerr << "Missing command line parameters.\n";
         usage(argv[0]);
     } else if (args.ngram_samples < args.min_sampling) {
         std::cerr << "o should be greater then n.\n";
+        usage(argv[0]);
+    } else if (args.pat_len_hi < args.pat_len_lo) {
+        std::cerr << "b should be at least a.\n";
         usage(argv[0]);
     }
     return args;
@@ -123,24 +133,27 @@ public:
 
 template<typename S, typename T>
 int find_ngrams(T& text_buf, cmdargs_t& args) {
-    if (text_buf.size() < args.pat_len) {
-        std::cout << "ERROR: text.size()=" << text_buf.size() << " < m=" << args.pat_len << std::endl;
+    if (text_buf.size() < args.pat_len_lo) {
+        std::cout << "ERROR: text.size()=" << text_buf.size() << " < a=" << args.pat_len_lo << std::endl;
         return 1;
     }
 
     //cout << "seed = " << args.seed << endl;
     std::mt19937_64 rng(args.seed);
-    std::uniform_int_distribution<uint64_t> distribution(0, text_buf.size() - args.pat_len);
+    std::uniform_int_distribution<uint64_t> distribution(0, text_buf.size() - args.pat_len_hi);
     auto dice = bind(distribution, rng);
 
-    S ngram(args.pat_len, '0');
-
+    auto get_pat_len = [&]() {
+        return rand() % (args.pat_len_hi - args.pat_len_lo + 1) + args.pat_len_lo;
+    };
     if (args.min_sampling) {
         string_vector_hash_fn h;
         unordered_map<size_t, S> ngram_storage(args.ngram_samples << 1);
         unordered_map<size_t, size_t> ngram_counts(args.ngram_samples << 1);
         for (int i = args.ngram_samples; i--;) {
-            get_ngram(text_buf, dice, args.pat_len, ngram);
+            int patlen = get_pat_len();
+            S ngram(patlen, '0');
+            get_ngram(text_buf, dice, patlen, ngram);
             ngram_counts[h(ngram)]++;
             ngram_storage[h(ngram)] = ngram;
         }
@@ -164,7 +177,10 @@ int find_ngrams(T& text_buf, cmdargs_t& args) {
         string_vector_hash_fn h; vector<S> results;
         unordered_map<size_t, bool> vis;
         while (results.size() < args.pat_cnt) {
-            get_ngram(text_buf, dice, args.pat_len, ngram);
+            int patlen = get_pat_len();
+            S ngram(patlen, '0');
+
+            get_ngram(text_buf, dice, patlen, ngram);
             if (!vis[h(ngram)]) {
                 results.push_back(ngram); vis[h(ngram)] = true;
             }

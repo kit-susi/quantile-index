@@ -19,12 +19,25 @@ def exe(cmd):
         print 'Error while running `%s`: %s' % (' '.join(cmd), e)
         raise
 
-def gen_queries(n, args, seed):
+def get_pattern_len_range(args):
+    if '-' in args.n:
+        x, y = map(int,args.n.split('-'))
+        assert x >= 1 and y >= x
+        return (x, y)
+    else:
+        x = int(args.n)
+        assert x >= 1
+        return (x, x)
+
+def gen_queries(num, args, seed):
+    mlo, mhi = get_pattern_len_range(args)
+
     return exe(['%s/gen_patterns' % args.build_dir,
         '-c', args.collection,
-        '-m', str(args.n),
+        '-a', str(mlo),
+        '-b', str(mhi),
         '-s', str(seed),
-        '-x', str(n),
+        '-x', str(num),
         ]
         + (['-o', str(args.min_sampling)] if args.min_sampling else [])
         + (['-i'] if get_collection_type(args.collection) == 'int' else [])
@@ -57,8 +70,8 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument('-c', dest='collection', required=True, metavar='DIRECTORY',
             help='Input collection')
-    p.add_argument('-n', default=3, type=int, metavar='INT',
-            help='ngram size for queries (default: 3)')
+    p.add_argument('-n', default='3', metavar='INT_OR_RANGE',
+            help='ngram size for queries (default: 3). Can also be a range: -n 3-10')
     p.add_argument('-q', default=1000, type=int, metavar='INT',
             help='Number of queries to create (default: 1000)')
     p.add_argument('-o', dest='min_sampling', default=0, type=int, metavar='INT',

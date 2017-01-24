@@ -5,7 +5,7 @@ import subprocess
 
 quantiles = [1, 2, 4, 8, 16, 32, 64, 128, 256]
 sampling = 4
-collections = ['ENWIKISML', 'REVISION', 'SOURCES']
+collections = ['ENWIKISML', 'SOURCES', 'REVISIONS']
 
 def quantile_config(s, q):
     return 'IDX_NN_QUANTILE_LG_%d_%d' % (s, q)
@@ -18,7 +18,7 @@ def printconf(config):
 
 def printIndexSizes(base, build_dir, output):
     output_file = open(output, "w")
-    output_file.write('index; collection; s; q; csa; doc; bv; grid; |G_q|\n')
+    output_file.write('index; collection; s; q; csa; doc; bv; grid; G_q\n')
     for collection in collections:
         for q in quantiles:
             col = base + '/' + collection

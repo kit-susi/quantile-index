@@ -5,3 +5,5 @@ cmake-build-*
 peda*
 .gdb*
 *.pyc
+*.tex
+*.pdf

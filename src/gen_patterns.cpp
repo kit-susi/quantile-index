@@ -140,11 +140,14 @@ int find_ngrams(T& text_buf, cmdargs_t& args) {
 
     //cout << "seed = " << args.seed << endl;
     std::mt19937_64 rng(args.seed);
+    std::mt19937_64 rng2(args.seed);
     std::uniform_int_distribution<uint64_t> distribution(0, text_buf.size() - args.pat_len_hi);
+    std::uniform_int_distribution<uint64_t> dist_patlen(args.pat_len_lo, args.pat_len_hi);
     auto dice = bind(distribution, rng);
+    auto dice_patlen = bind(dist_patlen, rng2);
 
     auto get_pat_len = [&]() {
-        return rand() % (args.pat_len_hi - args.pat_len_lo + 1) + args.pat_len_lo;
+        return dice_patlen();
     };
     if (args.min_sampling) {
         string_vector_hash_fn h;

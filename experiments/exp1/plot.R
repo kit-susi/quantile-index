@@ -2,7 +2,7 @@ require(ggplot2)
 require(tikzDevice)
 tikz('exp1.tex', standAlone = TRUE, width=5, height=5)
 
-data = read.table("exp1.csv", sep=";", header=TRUE)
+data = read.table("results.csv", sep=";", header=TRUE)
 collections <- unique(data$collection)
 for (col in collections) {
     max = data[data$collection==col & data$q == 1,]$G

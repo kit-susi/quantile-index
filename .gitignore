@@ -1,6 +1,7 @@
 /build
 *kateproject*
-/.idea
-/cmake-build-*
-/peda*
-/.gdb*
+.idea
+cmake-build-*
+peda*
+.gdb*
+*.pyc

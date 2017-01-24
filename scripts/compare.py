@@ -1,8 +1,9 @@
 #!/usr/bin/env python2
-from subprocess import check_output
+import sys, os
+sys.path.append(os.path.dirname(__file__) + "/../lib/py")
+
 from prettytable import PrettyTable
 import argparse
-import os
 import random
 import re
 import subprocess
@@ -10,14 +11,7 @@ import tempfile
 import threading
 import time
 import traceback
-import sys
-
-def exe(cmd):
-    try:
-        return check_output(cmd)
-    except Exception, e:
-        print 'Error while running `%s`: %s' % (' '.join(cmd), e)
-        raise
+from gen_queries import exe, make_query_file, get_collection_type
 
 def is_sorted(lst, eps):
     """ Checks of lst of floats is sorted. """
@@ -52,31 +46,11 @@ def results_are_same(a, b, eps, ignore_singletons=False):
             return False
     return True
 
-def get_collection_type(directory):
-    if os.path.exists('%s/text_int_SURF.sdsl' % directory):
-        return 'int'
-    elif os.path.exists('%s/text_SURF.sdsl' % directory):
-        return 'text'
-    else:
-        raise Exception("Not a SUSI collection: %d" % directory)
-
 def print_side_by_side(a, b):
     for i in range(max(len(a), len(b))):
         d1, s1 = a[i] if i < len(a) else ('','')
         d2, s2 = b[i] if i < len(b) else ('','')
         print '%8s%10s   |%8s%10s' % (d1, s1, d2, s2)
-
-def gen_queries(n, args, seed):
-    return exe(['%s/gen_patterns' % args.build_dir,
-        '-c', args.collection,
-        '-m', str(args.n),
-        '-s', str(seed),
-        '-x', str(n),
-        ]
-        + (['-o', str(args.min_sampling)] if args.min_sampling else [])
-        + (['-i'] if get_collection_type(args.collection) == 'int' else [])
-        ).rstrip('\r\n').splitlines()
-
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
@@ -160,18 +134,7 @@ if __name__ == '__main__':
         random.seed(seed)
 
         print 'Generating queries...'
-        if args.intersection == 1:
-            # singleterm
-            queries = '\n'.join(gen_queries(args.q, args, seed=seed)) + '\n'
-        elif args.intersection > 1:
-            # multi-term with intersection
-            queries = ''
-            for i in range(args.q):
-                queries += '\1'.join(gen_queries(args.intersection,
-                                                 args,
-                                                 seed=seed + i)) + '\n'
-        else:
-            assert 0, "Invalid value for -i: %d" % args.intersection
+        queries = make_query_file(args, seed)
 
         print 'Starting new round'
         last_result = None

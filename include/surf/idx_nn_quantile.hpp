@@ -300,7 +300,8 @@ public:
                   + sdsl::size_in_bytes(m_quantile_filter)
                   + sdsl::size_in_bytes(m_quantile_filter_rank)
                   + sdsl::size_in_bytes(m_quantile_filter_select)<< ";"; // H
-        std::cout << sdsl::size_in_bytes(m_k2treap) << std::endl;  // k2treap
+        std::cout << sdsl::size_in_bytes(m_k2treap) << ";";  // k2treap
+        std::cout << m_quantile_filter_rank(m_quantile_filter.size()) << std::endl; // |G_q|.
     }
 };
 

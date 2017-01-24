@@ -71,7 +71,7 @@ if __name__ == '__main__':
             help='Only check if results all match.')
     args = p.parse_args()
  
-    quantile_configs = [quantile_config(s,q) for s in sampling for q in quantiles]
+    quantile_configs = [quantile_config(s,q) for s in sampling for q in quantiles] + [quantile_config(4,q) for q in [1,2,4,256]]
     nn_configs = [nn_config(s) for s in sampling]
     nn_lg_configs = [nn_lg_config(s) for s in sampling]
     configs = quantile_configs + nn_configs + nn_lg_configs

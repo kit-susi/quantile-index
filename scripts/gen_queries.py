@@ -49,7 +49,7 @@ def get_collection_type(directory):
     elif os.path.exists('%s/text_SURF.sdsl' % directory):
         return 'text'
     else:
-        raise Exception("Not a SUSI collection: %d" % directory)
+        raise Exception("Not a SUSI collection: %s" % directory)
 
 def make_query_file(args, seed):
     if args.intersection == 1:

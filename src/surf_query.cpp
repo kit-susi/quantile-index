@@ -21,10 +21,12 @@ typedef struct cmdargs {
     std::string query_file = "";
     uint64_t k = 10;
     bool verbose = false;
+    bool verbose_timings = false;
     bool multi_occ = false;
     bool match_only = false;
     bool intersection = false;
     uint64_t snippet_size = 0;
+    const char* debug_file = nullptr;
 } cmdargs_t;
 
 void
@@ -39,6 +41,8 @@ print_usage(char* program)
     fprintf(stdout, "  -m <multi_occ>    : only retrieve documents which contain the term more than once.\n");
     fprintf(stdout, "  -o <only_match>   : only match pattern; no document retrieval.\n");
     fprintf(stdout, "  -s <snippet_size> : extract snippets of size snippet_size.\n");
+    fprintf(stdout, "  -d <debug file>   : file for extra data or custom benchmark results.\n");
+    fprintf(stdout, "  -t                : print times for each query individually.\n");
 };
 
 cmdargs_t
@@ -49,10 +53,13 @@ parse_args(int argc, char* const argv[])
     args.collection_dir = "";
     args.query_file = "";
     args.k = 10;
-    while ((op = getopt(argc, argv, "c:q:k:vmos:i")) != -1) {
+    while ((op = getopt(argc, argv, "c:q:k:vmos:id:t")) != -1) {
         switch (op) {
             case 'c':
                 args.collection_dir = optarg;
+                break;
+            case 'd':
+                args.debug_file = optarg;
                 break;
             case 'q':
                 args.query_file = optarg;
@@ -74,6 +81,9 @@ parse_args(int argc, char* const argv[])
                 break;
             case 'i':
                 args.intersection = true;
+                break;
+            case 't':
+                args.verbose_timings = true;
                 break;
             case '?':
             default:
@@ -174,9 +184,23 @@ int main(int argc, char* argv[])
         cout << "# collection_file = " << args.collection_dir << endl;
         cout << "# index_name = " << IDXNAME << endl;
     }
+
+    std::ostream* debug_stream = nullptr;
+    if (args.debug_file) {
+        debug_stream = new ofstream(args.debug_file);
+        assert(debug_stream);
+        if (!debug_stream->good()) {
+            cerr << "Could not open debug file." << endl;
+            abort();
+        }
+        (*debug_stream) << setprecision(20) << fixed;
+    }
+
     auto cc = parse_collection<idx_type::alphabet_category>(args.collection_dir);
     idx.load(cc);
     idx_type::topk_interface* topk = &idx;
+    if (debug_stream)
+        topk->set_debug_stream(debug_stream);
 
     if (!args.verbose) {
         cout << "# pattern_file = " << args.query_file << endl;
@@ -243,8 +267,8 @@ int main(int argc, char* argv[])
                 ++x;
                 sum_fdt += res_it->get().second;
                 if (args.verbose) {
-                    cout << q_cnt << ";" << x << ";" << res_it->get().first
-                        << ";" << res_it->get().second << endl;
+                    cout << "RESULT " << q_cnt << ";" << x << ";" << res_it->get().first
+                        << ";" << res_it->get().second << "\n";
                 }
                 if (args.snippet_size != 0) {
                     auto snippet = res_it->extract_snippet(args.snippet_size);
@@ -258,13 +282,20 @@ int main(int argc, char* argv[])
                 if (x < args.k)
                     res_it->next();
             }
-            sum += x;
             uint64_t msecs = chrono::duration_cast<chrono::microseconds>(
                     timer::now() - start).count();
             timings.push_back(msecs);
+            if (args.verbose_timings) {
+                cout << "TIME;" << msecs << "\n";
+            }
+
+            sum += x;
         }
     }
 
+
+    if (debug_stream)
+        (*debug_stream) << flush;
 
     if (!args.verbose) {
         sort(timings.begin(), timings.end());

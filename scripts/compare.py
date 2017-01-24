@@ -60,8 +60,8 @@ if __name__ == '__main__':
             help='Delete indexes before testing')
     p.add_argument('-c', dest='collection', required=True, metavar='DIRECTORY',
             help='Input collection')
-    p.add_argument('-n', default=3, type=int, metavar='INT',
-            help='ngram size for queries')
+    p.add_argument('-n', default='3', metavar='INT_OR_RANGE',
+            help='ngram size for queries (default: 3). Can also be a range: -n 3-10')
     p.add_argument('-r', default=20, type=int, metavar='INT',
             help='Number of testing rounds')
     p.add_argument('-q', default=1, type=int, metavar='INT',

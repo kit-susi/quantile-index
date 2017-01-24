@@ -42,6 +42,17 @@ struct topk_index {
         std::cerr << "intersection not implemented" << std::endl;
         abort();
     }
+
+    void set_debug_stream(std::ostream* debug_stream) {
+        m_debug_stream = debug_stream;
+    }
+
+    std::ostream* get_debug_stream() {
+        return m_debug_stream;
+    }
+
+private:
+    std::ostream* m_debug_stream = nullptr;
 };
 
 template <typename t_alphabet_category>

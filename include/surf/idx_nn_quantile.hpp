@@ -130,7 +130,7 @@ public:
         size_t k,
         const typename topk_interface::token_type* begin,
         const typename topk_interface::token_type* end,
-        bool multi_occ = false, bool only_match = false) override {
+        bool multi_occ, bool only_match) override {
             using std::get;
             m_results.clear();
             uint64_t sp, ep;
@@ -138,10 +138,11 @@ public:
                                       begin, end, sp, ep) > 0;
             //std::cerr << "sp ep = " << sp << " " << ep << std::endl;
             valid &= !only_match;
-            if (valid) {
-                uint64_t interval_size = ep - sp + 1;
-                //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
+            uint64_t interval_size = 0;
 
+            if (valid) {
+                interval_size = ep - sp + 1;
+                //std::cerr<< "interval size: " << interval_size << " " << quantile << " " << k << std::endl;
                 // interval_size > 1 handles the special case interval_size = quantile = k = 1
                 if (interval_size >= k*quantile && interval_size > 1) { // Use grid.
                     //std::cerr << "using grid" << std::endl;
@@ -171,6 +172,9 @@ public:
                     getTopK(sp, ep);
                 }
             }
+
+            if (this->get_debug_stream())
+                (*this->get_debug_stream()) << "INTERVAL_SIZE;" << interval_size << "\n";
             return sort_topk_results<typename topk_interface::token_type>(&m_results);
     }
 

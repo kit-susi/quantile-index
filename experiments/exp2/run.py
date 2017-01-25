@@ -33,6 +33,7 @@ def getTiming(config, collection, col):
     proc = subprocess.Popen(['./build/release/surf_query-%s' % config, '-c', col, '-q', queries(collection)],
             stdout=subprocess.PIPE)
     out = proc.communicate()[0]
+    print out
     return '%s; %s; %s; %s; %s; %s' % (
             ex(out, 'time_per_query_avg'),
             ex(out, 'time_per_query_median'),
@@ -44,7 +45,8 @@ def getTiming(config, collection, col):
 def generate_queries(base):
     for collection in collections:
         col = base + '/' + collection
-        subprocess.Popen(['./scripts/gen_queries.py', '-q', '50000', '-c', col, '-n', str(n), queries(collection)])
+        proc = subprocess.Popen(['./scripts/gen_queries.py', '-q', '50000', '-c', col, '-n', str(n), queries(collection)])
+	proc.communicate()
 
 def printSpaceTime(base, build_dir, output):
     output_file = open(output, "w")

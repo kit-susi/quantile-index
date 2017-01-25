@@ -178,15 +178,15 @@ int find_ngrams(T& text_buf, cmdargs_t& args) {
                 cout << ngrams[i][j] << ((j + 1 == ngrams[i].size()) ? "\n" : (args.int_collection ? " " : ""));
     } else {
         string_vector_hash_fn h; vector<S> results;
-        unordered_map<size_t, bool> vis;
+        //unordered_map<size_t, bool> vis;
         while (results.size() < args.pat_cnt) {
             int patlen = get_pat_len();
             S ngram(patlen, '0');
 
             get_ngram(text_buf, dice, patlen, ngram);
-            if (!vis[h(ngram)]) {
-                results.push_back(ngram); vis[h(ngram)] = true;
-            }
+            //if (!vis[h(ngram)]) {
+                results.push_back(ngram); //vis[h(ngram)] = true;
+            //}
         }
         for (const S & x : results)
             for (size_t j = 0; j < x.size(); ++j)

@@ -38,7 +38,7 @@ plot <- plot + geom_boxplot(outlier.size = 1)
 #plot <- plot + geom_point()
 plot <- plot + facet_grid(. ~ instance)
 plot <- plot + scale_x_discrete(name = "SA Interval size")
-plot <- plot + scale_y_log10(name = "Query time [ms]") #,breaks=c(0.01,0.1,1,10,100,1000,10000),labels=c("0.01","0.1","1","10","100","1k","10k"))
+plot <- plot + scale_y_log10(name = "Query time [µs]") #,breaks=c(0.01,0.1,1,10,100,1000,10000),labels=c("0.01","0.1","1","10","100","1k","10k"))
 print(plot)
 
 #dev.off()

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-configs="IDX_NN_LG_16 IDX_NN_QUANTILE_LG_16_32 IDX_NN_QUANTILE_LG_16_64"
+configs="IDX_NN_16 IDX_NN_LG_16 IDX_NN_QUANTILE_LG_16_32 IDX_NN_QUANTILE_LG_16_64"
 colls="TEST_TXT"
 config_intervalsz=IDX_NN_QUANTILE_LG_16_32
 patlen="3-10"

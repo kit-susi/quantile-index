@@ -32,7 +32,7 @@ def get_pattern_len_range(args):
 def gen_queries(num, args, seed):
     mlo, mhi = get_pattern_len_range(args)
 
-    return exe(['%s/gen_patterns' % args.build_dir,
+    cmd = (['%s/gen_patterns' % args.build_dir,
         '-c', args.collection,
         '-a', str(mlo),
         '-b', str(mhi),
@@ -41,7 +41,8 @@ def gen_queries(num, args, seed):
         ]
         + (['-o', str(args.min_sampling)] if args.min_sampling else [])
         + (['-i'] if get_collection_type(args.collection) == 'int' else [])
-        ).rstrip('\r\n').splitlines()
+        )
+    return exe(cmd).rstrip('\r\n').splitlines()
 
 def get_collection_type(directory):
     if os.path.exists('%s/text_int_SURF.sdsl' % directory):

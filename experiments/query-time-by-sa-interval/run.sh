@@ -26,7 +26,7 @@ function cleanup() {
   echo "Cleaning up $tmpdir"
   rm -rf "$tmpdir"
 }
-#trap cleanup EXIT
+trap cleanup EXIT
 
 echo "instance;algo;intervalsz;time" > "$result_file"
 

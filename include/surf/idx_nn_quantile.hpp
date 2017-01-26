@@ -771,7 +771,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                         if (!hrrr[i]) {
                             assert(i == dup_idx + sa_id);
                             uint64_t d = dup_nosingletons[dup_idx];
-                            uint64_t j = sa_id;
+                            uint64_t j = last_sa_id == sa_id ? last_val : sa_id;
                             while (darray[j] != d) {
                                 j++;
                             }

@@ -5,14 +5,14 @@ tikz('exp2.tex', standAlone = TRUE, width=5, height=5)
 data = read.table("results.csv", sep=";", header=TRUE)
 collections <- unique(data$collection)
 
-data$bitsperinput = data$indexsize / data$inputsize
+data$bitsperinput = data$indexsize / data$inputsize * 8
 for (col in collections) {
     coldata = data[data$collection==col,]
     p <- ggplot(coldata, aes(x=bitsperinput,y=avg, color=index))
     p <- p + scale_colour_hue(l=50)
     p <- p + geom_point(shape=1)
     p <- p + ggtitle(col) 
-    p <- p + scale_x_continuous(limits = c(0,4))
+    p <- p + scale_x_continuous(limits = c(0,32), breaks=c(0,8,16,24,32))
     plot(p)
 }
 

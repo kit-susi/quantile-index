@@ -21,6 +21,11 @@ d$timenum <- as.numeric(as.character(d$time))
 d$knum <- as.numeric(as.character(d$k))
 d$result_count_num <- as.numeric(as.character(d$result_count))
 
+roundit <- function(result_count_num) { floor(log(result_count_num)/log(2)) }
+d <- cbind(d, y = mapply(roundit, d$result_count_num))
+
+d$timeperdoc <- d$timenum/d$result_count_num
+
 #d$dataset <- revalue(d$dataset, c("KERNEL"="\\kernel", 
                                   #"CC"="\\commoncrawl",
                                   #"DNA"="\\dna"))
@@ -31,12 +36,13 @@ d$result_count_num <- as.numeric(as.character(d$result_count))
 
 #tikz("fig-var-txt-size.tex",width = 6.0, height = 2.8)
 
-plot <- ggplot(d,aes(factor(result_count_num),timenum,fill=algo,color=algo))
-plot <- plot + geom_boxplot(outlier.size = 1)
-#plot <- plot + geom_point()
+plot <- ggplot(d,aes(factor(k),timeperdoc,fill=algo,color=algo))
+#plot <- plot + geom_boxplot(outlier.size = 1)
+plot <- plot + geom_boxplot(outlier.shape = NA)
 plot <- plot + facet_grid(. ~ instance)
-plot <- plot + scale_x_discrete(name = "Result count")
-plot <- plot + scale_y_log10(name = "Query time [µs]") #,breaks=c(0.01,0.1,1,10,100,1000,10000),labels=c("0.01","0.1","1","10","100","1k","10k"))
+plot <- plot + scale_x_discrete(name = "k")
+plot <- plot + scale_y_continuous(name = "Query time per result [µs]",
+                                  limits = c(0, 100)) #,breaks=c(0.01,0.1,1,10,100,1000,10000),labels=c("0.01","0.1","1","10","100","1k","10k"))
 print(plot)
 
 #dev.off()

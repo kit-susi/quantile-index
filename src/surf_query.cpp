@@ -286,7 +286,7 @@ int main(int argc, char* argv[])
                     timer::now() - start).count();
             timings.push_back(msecs);
             if (args.verbose_timings) {
-                cout << "TIME;" << msecs << "\n";
+                cout << "TIME;" << msecs << ";" << x << "\n";
             }
 
             sum += x;

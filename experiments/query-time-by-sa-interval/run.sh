@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-configs="IDX_NN_LG_16 IDX_NN_QUANTILE_LG_16_32 IDX_NN_QUANTILE_LG_16_64"
+configs="IDX_NN_16 IDX_NN_LG_16 IDX_NN_QUANTILE_LG_16_32 IDX_NN_QUANTILE_LG_16_64"
 colls="TEST_TXT"
 config_intervalsz=IDX_NN_QUANTILE_LG_16_32
 patlen="3-10"
@@ -26,9 +26,9 @@ function cleanup() {
   echo "Cleaning up $tmpdir"
   rm -rf "$tmpdir"
 }
-#trap cleanup EXIT
+trap cleanup EXIT
 
-echo "instance;algo;intervalsz;time" > "$result_file"
+echo "instance;algo;intervalsz;time;result_count" > "$result_file"
 
 for coll in $colls; do
   query_file="$tmpdir/queries_$coll"
@@ -46,7 +46,7 @@ for coll in $colls; do
         | grep TIME | cut -d';' -f2 > "$tmpdir/timing_${coll}_${config}"
     yes "$coll;$config" | head -n $queries > "$tmpdir/common_cols_${coll}_${config}"
   done
-  cut -d';' -f2 "$tmpdir/intervalsz_raw_$coll" > "$tmpdir/intervalsz_$coll"
+  cut -d';' -f2,3 "$tmpdir/intervalsz_raw_$coll" > "$tmpdir/intervalsz_$coll"
   for config in $configs; do
     paste -d';' "$tmpdir/common_cols_${coll}_$config" \
                 "$tmpdir/intervalsz_$coll" \

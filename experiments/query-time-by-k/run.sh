@@ -27,7 +27,7 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-echo "instance;algo;k;time" > "$result_file"
+echo "instance;algo;k;time;result_count" > "$result_file"
 
 for coll in $colls; do
   query_file="$tmpdir/queries_$coll"
@@ -40,7 +40,7 @@ for coll in $colls; do
       echo "Running $config with k=$k"
       build/release/surf_index-$config -c "$coll_dir" > /dev/null
       build/release/surf_query-$config -k $k -c "$coll_dir" -q "$query_file" -t \
-          | grep TIME | cut -d';' -f2 > "$tmpdir/timing_${coll}_${config}_${k}"
+          | grep TIME | cut -d';' -f2,3 > "$tmpdir/timing_${coll}_${config}_${k}"
       yes "$coll;$config;$k" | head -n $queries > "$tmpdir/common_cols"
       paste -d';' "$tmpdir/common_cols" "$tmpdir/timing_${coll}_${config}_$k" \
         >> "$result_file"

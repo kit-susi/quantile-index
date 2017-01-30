@@ -5,13 +5,14 @@ import subprocess
 
 quantiles = [8, 16, 32, 64, 128]
 sampling = [4, 8, 16, 32, 64]
-collections = ['ENWIKISML', 'SOURCES', 'REVISIONS']
+collections = ['ENWIKIBIG', 'ENWIKISML', 'SOURCES', 'REVISIONS']
 #collections = ['TEST_TXT']
 n = 5
 
 def quantile_config(s, q):
+    return 'IDX_NN_QUANTILE_%d_%d' % (s, q)
+def quantile_lg_config(s, q):
     return 'IDX_NN_QUANTILE_LG_%d_%d' % (s, q)
-
 def nn_config(s):
     return 'IDX_NN_%d' % s
 def nn_lg_config(s):
@@ -55,9 +56,8 @@ def printSpaceTime(base, build_dir, output):
         col = base + '/' + collection
         for s in sampling:
             for q in quantiles:
-                config = quantile_config(s, q)
-    	        output_file.write(config + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + 
-                        getTiming(config, collection, col) + "\n")
+                for config in [quantile_config(s, q), quantile_lg_config(s,q)]:
+    	            output_file.write(config + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + getTiming(config, collection, col) + "\n")
             q = 1
             for config in [nn_config(s), nn_lg_config(s)]:
                 output_file.write(config + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + 

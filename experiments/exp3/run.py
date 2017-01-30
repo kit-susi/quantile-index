@@ -8,6 +8,8 @@ s = 16
 collections = ['ENWIKIBIG', 'ENWIKISML', 'SOURCES', 'REVISIONS']
 
 def quantile_config(s, q):
+    return 'IDX_NN_QUANTILE_%d_%d' % (s, q)
+def quantile_lg_config(s, q):
     return 'IDX_NN_QUANTILE_LG_%d_%d' % (s, q)
 def nn_config(s):
     return 'IDX_NN_%d' % s
@@ -25,7 +27,7 @@ def printIndexSizes(base, build_dir, output):
     output_file.write('index; collection; s; q; csa; doc; bv; grid; G_q\n')
     for collection in collections:
         col = base + '/' + collection
-        for config in [quantile_config(s, q), nn_config(s), nn_lg_config(s)]: 
+        for config in [quantile_config(s, q), quantile_lg_config(s, q), nn_config(s), nn_lg_config(s)]: 
             proc = subprocess.Popen(['./%s/surf_index-%s' % (build_dir, config), "-c", col, "-m m"],
                     stdout=subprocess.PIPE)
             out = proc.communicate()[0]

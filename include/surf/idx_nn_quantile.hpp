@@ -346,7 +346,7 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
 
     construct_col_len<t_df::alphabet_category::WIDTH>(cc);
 
-    auto key_w_and_p = (offset_encoding ? surf::KEY_W_AND_P_G : surf::KEY_W_AND_P) + idx_type::QUANTILE_SUFFIX();
+    auto key_w_and_p = surf::KEY_W_AND_P_G + idx_type::QUANTILE_SUFFIX();
     const auto key_p = surf::KEY_P_QUANTILE_G + idx_type::QUANTILE_SUFFIX();
     const auto key_dup = surf::KEY_DUP_G;
     const auto key_weights = surf::KEY_WEIGHTS_G;
@@ -710,9 +710,10 @@ void construct(idx_nn_quantile<t_csa, t_k2treap, quantile, max_query_length, t_b
                 KEY_FILTERED_QUANTILE_FILTER + idx_type::QUANTILE_SUFFIX(),
                 cc, true);
     }
-
    cout << "...W_AND_P" << endl;
-    if (!cache_file_exists<t_k2treap>(key_w_and_p, cc))
+    if (!cache_file_exists<t_k2treap>(key_w_and_p, cc) ||
+            (offset_encoding && !cache_file_exists<doc_offset_type>(surf::KEY_DOC_OFFSET + idx_type::QUANTILE_SUFFIX(), cc)) ||
+            (!offset_encoding && !cache_file_exists(key_dup + idx_type::QUANTILE_SUFFIX(), cc)))
     {
         int_vector_buffer<> P_buf(cache_file_name(key_p, cc));
         std::string W_and_P_file = cache_file_name(key_w_and_p, cc);

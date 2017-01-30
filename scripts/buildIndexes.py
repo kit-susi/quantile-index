@@ -13,6 +13,8 @@ def output(s):
     output_file.flush()
 
 def quantile_config(s, q):
+    return 'IDX_NN_QUANTILE_%d_%d' % (s, q)
+def quantile_lg_config(s, q):
     return 'IDX_NN_QUANTILE_LG_%d_%d' % (s, q)
 def nn_config(s):
     return 'IDX_NN_%d' % s
@@ -71,10 +73,11 @@ if __name__ == '__main__':
             help='Only check if results all match.')
     args = p.parse_args()
  
-    quantile_configs = [quantile_config(s,q) for s in sampling for q in quantiles] + [quantile_config(4,q) for q in [1,2,4,256]]
+    quantile_configs = [quantile_config(s,q) for s in sampling for q in quantiles]
+    quantile_lg_configs = [quantile_lg_config(s,q) for s in sampling for q in quantiles]
     nn_configs = [nn_config(s) for s in sampling]
     nn_lg_configs = [nn_lg_config(s) for s in sampling]
-    configs = quantile_configs + nn_configs + nn_lg_configs
+    configs = quantile_configs + quantile_lg_configs + nn_configs + nn_lg_configs
     if args.rebuild:
 	build_executable(configs)
 

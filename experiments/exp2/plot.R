@@ -6,6 +6,10 @@ data = read.table("results.csv", sep=";", header=TRUE)
 collections <- unique(data$collection)
 
 data$bitsperinput = data$indexsize / data$inputsize * 8
+d1 <- subset(data,  data$q == 64 & data$s == 16)
+d1$index <- "s=16, q=64"
+
+data <- rbind(data, d1)
 for (col in collections) {
     coldata = data[data$collection==col,]
     p <- ggplot(coldata, aes(x=bitsperinput,y=avg, color=index))

@@ -22,7 +22,7 @@ def lastLine(s):
 def printconf(config):
     return config.replace('_', ';')
 
-configs = [quantile_config(s, q), quantile_lg_config(s, q), nn_config(s), nn_lg_config(s)]:
+configs = [quantile_config(s, q), quantile_lg_config(s, q), nn_config(s), nn_lg_config(s)]
 def printIndexSizes(base, build_dir, output):
     output_file = open(output, "w")
     output_file.write('index; collection; s; q; csa; doc; bv; grid; G_q\n')

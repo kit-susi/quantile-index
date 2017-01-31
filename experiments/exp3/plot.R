@@ -14,6 +14,7 @@ data$variable <- factor(data$variable, levels(data$variable)[c(2,4,3,1)], ordere
 p <- ggplot(data, aes(index, value, fill=variable)) + geom_bar(position="stack",stat="identity")
 p <- p + theme(legend.position="top")
 p <- p + facet_wrap(~collection)
-p <- p + scale_y_continuous(limits = c(0,32), breaks=c(0,8,16,24,32))
+p <- p + scale_x_discrete(name="")
+p <- p + scale_y_continuous(name="Space [Bits per input character]", limits = c(0,32), breaks=c(0,8,16,24,32))
 plot(p)
 dev.off()

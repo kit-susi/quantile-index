@@ -2,8 +2,9 @@ require(ggplot2)
 require(tikzDevice)
 tikz('exp1.tex', width=5, height=5)
 
-#totalenwikibig = 13317865189
-#enwikibigq4 =    10178397098
+#enwikibigq1 = 13317865189
+#enwikibigq2 = 12359688944
+#enwikibigq4 = 10178397098
 
 data = read.table("results.csv", sep=";", header=TRUE)
 collections <- unique(data$collection)

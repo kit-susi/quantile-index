@@ -56,11 +56,11 @@ def printSpaceTime(base, build_dir, output):
         col = base + '/' + collection
         for s in sampling:
             for q in quantiles:
-                for config in [quantile_config(s, q), quantile_lg_config(s,q)]:
-    	            output_file.write(config + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + getTiming(config, collection, col) + "\n")
+                for (desc,config) in [("QUANTILE", quantile_config(s, q)), ("QUANTILELG", quantile_lg_config(s,q))]:
+    	            output_file.write(desc + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + getTiming(config, collection, col) + "\n")
             q = 1
-            for config in [nn_config(s), nn_lg_config(s)]:
-                output_file.write(config + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + 
+            for (desc,config) in [("NN", nn_config(s)), ("NNLG", nn_lg_config(s))]:
+                output_file.write(desc + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + 
                         getTiming(config, collection, col) + "\n")
 
 

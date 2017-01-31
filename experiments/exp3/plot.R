@@ -5,7 +5,7 @@ tikz('exp3.tex', width=5, height=5)
 
 data = read.table("results.csv", sep=";", header=TRUE)
 
-data <- melt(data, id=colnames(data)[c(-6,-7,-8,-9)])
+data <- melt(data, id=colnames(data)[c(-5,-6,-7,-8)])
 data$value = data$value / data$inputsize * 8
 
 # reorder from (grid, bv, doc, csa) components to (csa, bv, grid, doc)

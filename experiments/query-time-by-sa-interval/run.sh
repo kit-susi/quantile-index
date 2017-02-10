@@ -1,13 +1,14 @@
 #!/bin/bash
 set -e
 
-configs="IDX_NN_16 IDX_NN_LG_16 IDX_NN_QUANTILE_16_64 IDX_NN_QUANTILE_LG_16_32 IDX_NN_QUANTILE_LG_16_64"
+configs="IDX_NN_16 IDX_NN_LG_16 IDX_NN_QUANTILE_16_64 IDX_NN_QUANTILE_LG_16_64"
 colls="ENWIKIBIG REVISIONS SOURCES ENWIKISML"
-config_intervalsz=IDX_NN_QUANTILE_LG_16_32
+config_intervalsz=IDX_NN_QUANTILE_LG_16_64
 patlen="3-10"
 k=10
-queries=100000
+queries=500000
 seed=1
+numactl=~/numactl
 
 dir=`dirname "$0"`
 cd "$dir"
@@ -42,7 +43,8 @@ for coll in $colls; do
     if [[ $config == $config_intervalsz ]]; then
       extra_args+=(-d "$tmpdir/intervalsz_raw_$coll")
     fi
-    build/release/surf_query-$config -k $k -c "$coll_dir" -q "$query_file" -t "${extra_args[@]}" \
+    $numactl --physcpubind=0 --membind=0 \
+      build/release/surf_query-$config -k $k -c "$coll_dir" -q "$query_file" -t "${extra_args[@]}" \
         | grep TIME | cut -d';' -f2,3 > "$tmpdir/timing_${coll}_${config}"
     yes "$coll;$config" | head -n $queries > "$tmpdir/common_cols_${coll}_${config}"
   done

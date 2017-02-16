@@ -6,7 +6,6 @@ import subprocess
 quantiles = [8, 16, 32, 64, 128]
 sampling = [4, 8, 16, 32, 64]
 collections = ['ENWIKIBIG', 'ENWIKISML', 'SOURCES', 'REVISIONS']
-#collections = ['TEST_TXT']
 n = 5
 
 def quantile_config(s, q):
@@ -31,10 +30,10 @@ def ex(out, key):
         return '0.0'
 
 def getTiming(config, collection, col):
-    proc = subprocess.Popen(['./build/release/surf_query-%s' % config, '-c', col, '-q', queries(collection)],
-            stdout=subprocess.PIPE)
+    print(config, collection)
+    commands = ['/home/labeit/numactl', '--physcpubind=0', '--membind=0', './build/release/surf_query-%s' % config, '-c', col, '-q', queries(collection)]
+    proc = subprocess.Popen(commands, stdout=subprocess.PIPE)
     out = proc.communicate()[0]
-    print out
     return '%s; %s; %s; %s; %s; %s' % (
             ex(out, 'time_per_query_avg'),
             ex(out, 'time_per_query_median'),
@@ -57,7 +56,8 @@ def printSpaceTime(base, build_dir, output):
         for s in sampling:
             for q in quantiles:
                 for (desc,config) in [("QUANTILE", quantile_config(s, q)), ("QUANTILELG", quantile_lg_config(s,q))]:
-    	            output_file.write(desc + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + getTiming(config, collection, col) + "\n")
+		    line = desc + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + getTiming(config, collection, col) + "\n"
+    	            output_file.write(line)
             q = 1
             for (desc,config) in [("NN", nn_config(s)), ("NNLG", nn_lg_config(s))]:
                 output_file.write(desc + "; " + collection + "; " + str(s) + "; " + str(q) + "; " + 

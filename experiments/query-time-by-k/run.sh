@@ -1,12 +1,13 @@
 #!/bin/bash
 set -e
 
-configs="IDX_NN_16 IDX_NN_LG_16 IDX_NN_QUANTILE_LG_16_32 IDX_NN_QUANTILE_LG_16_64"
-colls="ENWIKIBIG REVISIONS SOURCES ENWIKISML"
+configs="IDX_NN_16 IDX_NN_LG_16 IDX_NN_QUANTILE_16_64 IDX_NN_QUANTILE_LG_16_64"
+colls="ENWIKIBIG"
 patlen=5
 ks="1 2 4 8 16 32 64 128 256 512 1024 2048"
-queries=10000
+queries=100000
 seed=1
+numactl=$HOME/numactl
 
 dir=`dirname "$0"`
 cd "$dir"
@@ -39,7 +40,8 @@ for coll in $colls; do
     for k in $ks; do
       echo "Running $config with k=$k"
       build/release/surf_index-$config -c "$coll_dir" > /dev/null
-      build/release/surf_query-$config -k $k -c "$coll_dir" -q "$query_file" -t \
+      $numactl --physcpubind=0 --membind=0 \
+          build/release/surf_query-$config -k $k -c "$coll_dir" -q "$query_file" -t \
           | grep TIME | cut -d';' -f2,3 > "$tmpdir/timing_${coll}_${config}_${k}"
       yes "$coll;$config;$k" | head -n $queries > "$tmpdir/common_cols"
       paste -d';' "$tmpdir/common_cols" "$tmpdir/timing_${coll}_${config}_$k" \

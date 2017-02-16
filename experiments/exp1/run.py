@@ -5,7 +5,7 @@ import subprocess
 
 quantiles = [1, 2, 4, 8, 16, 32, 64, 128, 256]
 sampling = 4
-collections = ['ENWIKISML', 'SOURCES', 'REVISIONS']
+collections = ['ENWIKIBIG', 'ENWIKISML', 'SOURCES', 'REVISIONS']
 
 def quantile_config(s, q):
     return 'IDX_NN_QUANTILE_LG_%d_%d' % (s, q)

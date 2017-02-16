@@ -69,4 +69,5 @@ TARGET_LINK_LIBRARIES(convert2surf sdsl)
 ADD_EXECUTABLE(tokenize_text src/tokenize_text.cpp)
 TARGET_LINK_LIBRARIES(tokenize_text sdsl)
 
-
+ADD_EXECUTABLE(print_stats src/print_stats.cpp)
+TARGET_LINK_LIBRARIES(print_stats sdsl)

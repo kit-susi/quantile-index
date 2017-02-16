@@ -56,11 +56,23 @@ Make sure that the collection directory contains a file
 named 'text_SURF.sdsl' with a sdsl::int_vector. The file should the
 concatenation of all documents separated by '\1'.
 
-## Reproducing experiments to 'The Quantile Index - Succinct Self-Index for Top-k Document retrieval'
+## Reproducing experiments
+To the experiments of the work
+'The Quantile Index - Succinct Self-Index for Top-k Document retrieval' by
+Niklas Baumstark, Simon Gog, Tobias Heuer and Julian Labeit use the following
+instructions.
 
-Before running the experiments all indexes have to be built on the collections
-'ENWIKISML', ENWIKIBIG', 'REVISIONS' and 'SOURCES'. All indexes have to be
-placed into the same root directory.
-The scripts for running the experiments can be found in the './experiments'
-directory. The directory with all the indexes have to be specified through
-the command line parameters of the 'run' scripts.
+First build all binaries as descibed above.
+Then download the collections by running
+
+    $ ./scripts/download-collections.sh
+
+After completion the directory ./collections should contain the collections
+'ENWIKISML', ENWIKIBIG', 'REVISIONS' and 'SOURCES'.
+
+Finnaly run the experiments by executing the scripts in the directory
+'./experiments'.  The directory with all the indexes have to be specified
+through the command line parameters of the 'run' scripts. Each script should
+output a *.csv file with the results.
+
+In case of any questions please contact us via the github issue or e-mail.

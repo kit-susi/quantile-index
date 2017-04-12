@@ -37,14 +37,6 @@ Or just a selected subset of configs:
 For debug builds, add the `-d` flag to `build.sh` or `build_config.sh`. The two
 builds will live in `build/release` and `build/debug`, respectively.
 
-## Keeping `external/sdsl-lite/` up to date
-
-Use the shell script `scripts/sdsl.sh`. We are mirroring
-git@github.com:kit-susi/sdsl-lite.git (branch master) in
-subtree `external/sdsl-lite/`. See
-[https://git-scm.com/book/en/v1/Git-Tools-Subtree-Merging](subtree merging)
-for an overview over the subtree merging workflow.
-
 ## Index construction
 
 To construct a specific index with the configuration 'IDX' and a collection
